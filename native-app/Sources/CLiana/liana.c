@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "hidapi.h"
 
@@ -52,6 +54,7 @@ static const CmdSpec kCommands[] = {
     {"writeIapMemory", 0x04, 0x00},
     {"writeEraseMemory", 0x05, 0x00},
     {"keyboardLayer", 0x10, 0x02},
+    {"readKeyboardLayer", 0x90, 0x02},
     {"uploadKbdLayout", 0x10, 0x02},
     {"kbdMagicFn", 0x10, 0x03},
     {"kbdTap", 0x10, 0x05},
@@ -237,6 +240,48 @@ int liana_transact(LianaHandle *h, const char *command, const uint8_t *payload,
         return (int)payload_len;
     }
     return -1;
+}
+
+int liana_read_command(LianaHandle *h, const char *command, int dist,
+                       uint8_t *reply, size_t reply_max, int timeout_ms) {
+    const CmdSpec *spec = FindCommand(command);
+    if (!spec || !h || !h->dev) return -1;
+    if (SendCommand(h, spec->cmd, spec->arg, (uint8_t)dist, NULL, 0) < 0) return -1;
+
+    const int64_t deadline = NowMs() + (timeout_ms > 0 ? timeout_ms : 1500);
+    size_t total = 0;
+    uint8_t buf[64];
+    while (NowMs() < deadline) {
+        int n = hid_read_timeout(h->dev, buf, sizeof buf, 50);
+        if (n <= 0) continue;
+
+        int marker = -1;
+        for (int i = 1; i < n - 2 && i < 12; ++i) {
+            if (buf[i] == 0x7d) { marker = i; break; }
+        }
+        if (marker < 4) continue;
+        if (buf[marker + 1] != spec->cmd || buf[marker + 2] != spec->arg) {
+            if (getenv("LIANA_TRACE")) {
+                fprintf(stderr, "RX cmd=%02x arg=%02x marker=%d n=%d\n",
+                        buf[marker + 1], buf[marker + 2], marker, n);
+            }
+            continue;
+        }
+
+        const unsigned char seq = buf[marker - 4];
+        const int multi = (seq & 0x80) != 0;
+        const size_t payload_at = (size_t)marker + 3;
+        const unsigned declared = (unsigned)buf[marker - 3] | ((unsigned)buf[marker - 2] << 8);
+        size_t payload_len = declared >= 2 ? declared - 2 : 0;
+        if (payload_at + payload_len > (size_t)n) {
+            payload_len = (size_t)n > payload_at ? (size_t)n - payload_at : 0;
+        }
+        if (total + payload_len > reply_max) payload_len = reply_max - total;
+        if (reply && payload_len) memcpy(reply + total, buf + payload_at, payload_len);
+        total += payload_len;
+        if (!multi) break;
+    }
+    return total > 0 ? (int)total : -1;
 }
 
 static void CopyWide(char *dst, size_t cap, const wchar_t *src) {

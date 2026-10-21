@@ -51,6 +51,25 @@ func query(_ command: String) -> [UInt8]? {
     return Array(reply.prefix(Int(n)))
 }
 
+var layerBuf = [UInt8](repeating: 0, count: 2048)
+var layerLen: Int32 = -1
+for dist in [0, 1, 2, 3] {
+    layerLen = layerBuf.withUnsafeMutableBufferPointer {
+        liana_read_command(handle, "readKeyboardLayer", Int32(dist), $0.baseAddress, $0.count, 800)
+    }
+    print("keyboardLayer dist=\(dist): \(layerLen)")
+    if layerLen > 0 { break }
+}
+if layerLen > 0 {
+    var keys: [UInt16] = []
+    for i in stride(from: 0, to: Int(layerLen) - 1, by: 2) {
+        keys.append(UInt16(layerBuf[i]) | (UInt16(layerBuf[i + 1]) << 8))
+    }
+    print("keyboardLayer(0): \(layerLen) bytes, \(keys.count) keys, first: \(keys.prefix(8).map { String(format: "%04x", $0) })")
+} else {
+    print("keyboardLayer(0): no reply")
+}
+
 for command in ["readFirmwareVersion", "readBatteryPercentage", "readPowerOnTime", "readDeviceType"] {
     if let data = query(command) {
         print("\(command): \(data.map { String(format: "%02x", $0) }.joined(separator: " "))")

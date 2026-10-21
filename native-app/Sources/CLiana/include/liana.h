@@ -48,6 +48,11 @@ int liana_transact(LianaHandle *handle, const char *command,
                    const uint8_t *payload, size_t length, int dist,
                    uint8_t *reply, size_t reply_max, int timeout_ms);
 
+/// Send a command with no payload and collect its reply, reassembling the
+/// protocol's multi-chunk frames. Returns the payload size or -1.
+int liana_read_command(LianaHandle *handle, const char *command, int dist,
+                       uint8_t *reply, size_t reply_max, int timeout_ms);
+
 /// TCC "Input Monitoring" state: 1 granted, 0 denied, -1 unknown.
 int liana_check_listen_access(void);
 /// Ask macOS to show the Input Monitoring prompt. Returns 1 if granted.
