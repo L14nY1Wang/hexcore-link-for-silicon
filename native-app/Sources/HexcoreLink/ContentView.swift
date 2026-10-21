@@ -2,9 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var store: DeviceStore
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $store.page) {
                 Section("设备") {
                     ForEach(store.devices) { device in
@@ -46,13 +47,23 @@ struct ContentView: View {
             }
             .navigationTitle("Hexcore Link")
         } detail: {
-            switch store.page {
-            case .overview:
-                OverviewView()
-            case .layout:
-                LayoutView()
-            case .lighting, .macros, .settings:
-                PlaceholderView(page: store.page)
+            VStack(spacing: 0) {
+                HStack {
+                    Button {
+                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .help("显示/隐藏边栏")
+                    Spacer()
+                }
+                .padding(.leading, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 2)
+
+                detailPage
             }
         }
         .alert("错误", isPresented: Binding(
@@ -63,5 +74,17 @@ struct ContentView: View {
         } message: {
             Text(store.error)
         }
+    }
+
+    @ViewBuilder
+    private var detailPage: some View {
+            switch store.page {
+            case .overview:
+                OverviewView()
+            case .layout:
+                LayoutView()
+            case .lighting, .macros, .settings:
+                PlaceholderView(page: store.page)
+            }
     }
 }

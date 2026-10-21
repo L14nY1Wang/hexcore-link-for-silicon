@@ -105,6 +105,25 @@ final class DeviceStore: ObservableObject {
         let id: Int
         let name: String
         let model: Int
+        let isDefault: Bool
+
+        /// The vendor stores keys like `intl.keymap.qwerty`; show something
+        /// readable in the library while keeping the raw name for renames.
+        var displayName: String { DeviceStore.shortName(name) }
+    }
+
+    nonisolated static func shortName(_ raw: String) -> String {
+        var name = raw
+        for prefix in ["intl.keymap.", "keymap."] where name.hasPrefix(prefix) {
+            name.removeFirst(prefix.count)
+        }
+        switch name.lowercased() {
+        case "qwerty": return "QWERTY"
+        case "mac": return "Mac"
+        case "dvorak": return "Dvorak"
+        default:
+            return name.replacingOccurrences(of: "_", with: " ")
+        }
     }
 
     private var handle: OpaquePointer?
@@ -193,7 +212,10 @@ final class DeviceStore: ObservableObject {
         for model in database.deviceModels() {
             for row in database.keymaps(deviceModel: model) {
                 guard let id = row["id"] as? Int64, let name = row["name"] as? String else { continue }
-                let summary = LayoutSummary(id: Int(id), name: name, model: model)
+                let summary = LayoutSummary(
+                    id: Int(id), name: name, model: model,
+                    isDefault: ((row["isDefault"] as? Int64) ?? 0) != 0
+                )
                 items.append(summary)
                 if let keymap = Keymap.parse(row: row) {
                     keymapsByID[summary.id] = keymap
@@ -261,15 +283,37 @@ final class DeviceStore: ObservableObject {
 
     func saveCurrentLayout() {
         guard let database, let keymap = currentKeymap else { return }
-        let ok = database.updateKeymap(
-            id: keymap.id,
+        let layers = (
             top: keymap.top.map(\.raw),
             fn1: keymap.fn1.map(\.raw),
             fn2: keymap.fn2.map(\.raw),
             tap: keymap.tap.map(\.raw)
         )
-        deviceLayerStatus = ok ? "已保存到本地配列库" : "保存失败：\(database.lastError)"
-        if ok { hasUnsavedEdits = false }
+
+        // Never overwrite the vendor's built-in layouts: saving one of those
+        // creates a new entry and selects it.
+        if keymap.isDefault {
+            guard let id = database.insertKeymap(
+                name: Self.shortName(keymap.name) + " 自定义",
+                deviceModel: keymap.deviceModel,
+                top: layers.top, fn1: layers.fn1, fn2: layers.fn2, tap: layers.tap
+            ) else {
+                deviceLayerStatus = "保存失败：\(database.lastError)"
+                return
+            }
+            selectedLayoutID = Int(id)
+            reloadLibrary()
+            deviceLayerStatus = "已另存为新配列"
+        } else {
+            let ok = database.updateKeymap(
+                id: keymap.id,
+                top: layers.top, fn1: layers.fn1, fn2: layers.fn2, tap: layers.tap
+            )
+            deviceLayerStatus = ok ? "已保存到本地配列库" : "保存失败：\(database.lastError)"
+            if ok { hasUnsavedEdits = false }
+            return
+        }
+        hasUnsavedEdits = false
     }
 
     func readDeviceLayer() {

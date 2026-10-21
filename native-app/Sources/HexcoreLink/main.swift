@@ -30,6 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentView = NSHostingView(rootView: root)
         window.makeKeyAndOrderFront(nil)
         self.window = window
+        // The split view installs a sidebar toggle in the system toolbar; its
+        // position shifts as the window resizes. The app draws its own fixed
+        // button inside the detail pane instead.
+        DispatchQueue.main.async {
+            window.toolbar = nil
+        }
         NSApp.activate(ignoringOtherApps: true)
     }
 

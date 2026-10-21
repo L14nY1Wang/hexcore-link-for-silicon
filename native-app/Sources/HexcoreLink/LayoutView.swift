@@ -51,7 +51,7 @@ struct LayoutView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("配列").font(.title2.bold())
                 HStack(spacing: 8) {
-                    Text(store.currentKeymap.map { "\($0.name) · \($0.top.count) 键" } ?? "未选择配列")
+                    Text(store.currentKeymap.map { "\(DeviceStore.shortName($0.name)) · \($0.top.count) 键" } ?? "未选择配列")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     if store.hasUnsavedEdits {
@@ -161,7 +161,7 @@ struct LayoutView: View {
                             selectedKey = nil
                         } label: {
                             HStack {
-                                Text(layout.name)
+                                Text(layout.displayName)
                                     .fontWeight(store.selectedLayoutID == layout.id ? .semibold : .regular)
                                 Spacer()
                                 Text("型号 \(layout.model)")
@@ -176,7 +176,7 @@ struct LayoutView: View {
                         .contextMenu {
                             Button("重命名") {
                                 renameTarget = layout
-                                renameText = layout.name
+                                renameText = layout.displayName
                             }
                             Button("复制为副本") {
                                 store.selectLayout(layout.id)
