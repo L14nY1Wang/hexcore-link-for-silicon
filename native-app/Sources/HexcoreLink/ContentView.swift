@@ -52,6 +52,24 @@ struct ContentView: View {
                         Button("Read again") { store.readAll() }
                         Button("Disconnect") { store.disconnect() }
                     }
+
+                    if !store.layouts.isEmpty {
+                        Divider().padding(.vertical, 4)
+                        Text("Layout library").font(.headline)
+                        Text("\(store.layouts.count) layouts across \(Set(store.layouts.map(\.model)).count) device models")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        ForEach(store.layouts.prefix(6)) { layout in
+                            HStack {
+                                Text(layout.name)
+                                Spacer()
+                                Text("model \(layout.model)")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            .font(.callout)
+                        }
+                    }
                     Spacer()
                 } else {
                     ContentUnavailableView(

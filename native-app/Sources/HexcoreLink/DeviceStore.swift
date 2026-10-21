@@ -41,8 +41,16 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var hardwareState: String = ""
     @Published var error: String = ""
     @Published private(set) var permission: String = "unknown"
+    @Published private(set) var layouts: [LayoutSummary] = []
+
+    struct LayoutSummary: Identifiable, Hashable {
+        let id: Int
+        let name: String
+        let model: Int
+    }
 
     private var handle: OpaquePointer?
+    private var database: VendorDatabase?
 
     init() {
         if liana_init() != 0 {
@@ -50,6 +58,7 @@ final class DeviceStore: ObservableObject {
         }
         refreshPermission()
         refresh()
+        openDatabase()
     }
 
     deinit {
@@ -99,6 +108,21 @@ final class DeviceStore: ObservableObject {
         if devices.count == 1, connected == nil, let only = devices.first {
             connect(only)
         }
+    }
+
+    private func openDatabase() {
+        let path = NSHomeDirectory() + "/Library/Application Support/hexcore-link/hexcore-link.db"
+        guard FileManager.default.fileExists(atPath: path),
+              let database = VendorDatabase(path: path) else { return }
+        self.database = database
+        var items: [LayoutSummary] = []
+        for model in database.deviceModels() {
+            for row in database.keymaps(deviceModel: model) {
+                guard let id = row["id"] as? Int64, let name = row["name"] as? String else { continue }
+                items.append(LayoutSummary(id: Int(id), name: name, model: model))
+            }
+        }
+        layouts = items
     }
 
     func connect(_ device: DeviceInfo) {

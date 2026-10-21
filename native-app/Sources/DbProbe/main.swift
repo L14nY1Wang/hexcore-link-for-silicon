@@ -22,4 +22,13 @@ if let sample = db.keymaps(deviceModel: db.deviceModels().first ?? 2).first {
     print("sample columns: \(sample.keys.sorted())")
     print("sample deviceModel=\(sample["deviceModel"] ?? "?"), name=\(sample["name"] ?? "?")")
 }
+
+for model in db.deviceModels() {
+    guard let row = db.keymaps(deviceModel: model).first else { continue }
+    for col in ["top", "fn1", "fn2", "tap", "macro"] {
+        let s = String(describing: row[col] ?? "nil")
+        print("[\(model)] \(col) (\(s.count)): \(s.prefix(300))")
+    }
+    break
+}
 if !db.lastError.isEmpty { print("lastError: \(db.lastError)") }
