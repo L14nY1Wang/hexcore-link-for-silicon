@@ -47,6 +47,7 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var selectedLayoutID: Int?
     @Published private(set) var deviceLayerKeys: [UInt16] = []
     @Published private(set) var deviceLayerStatus: String = ""
+    @Published private(set) var brightness: Int = 50
 
     private var keymapsByID: [Int: Keymap] = [:]
 
@@ -181,6 +182,16 @@ final class DeviceStore: ObservableObject {
         }
         deviceLayerKeys = keys
         deviceLayerStatus = "读取 \(keys.count) 键"
+    }
+
+    func setBrightness(_ value: Int) {
+        guard let handle else { return }
+        let level = max(0, min(100, value))
+        var payload: [UInt8] = [UInt8(level)]
+        _ = payload.withUnsafeBufferPointer {
+            liana_write(handle, "backlightBrightness", $0.baseAddress, 1, 3)
+        }
+        brightness = level
     }
 
     func applyCurrentLayer() {

@@ -72,6 +72,19 @@ struct ContentView: View {
                             .frame(width: 260)
                         }
                         HStack {
+                            Text("亮度").font(.callout)
+                            Slider(value: Binding(
+                                get: { Double(store.brightness) },
+                                set: { store.setBrightness(Int($0)) }
+                            ), in: 0...100)
+                            .frame(width: 220)
+                            Text("\(store.brightness)%")
+                                .font(.callout)
+                                .monospacedDigit()
+                                .frame(width: 40, alignment: .trailing)
+                        }
+
+                        HStack {
                             Button("从设备读取配列") { store.readDeviceLayer() }
                             Button("应用当前配列到设备") { store.applyCurrentLayer() }
                             if !store.deviceLayerStatus.isEmpty {

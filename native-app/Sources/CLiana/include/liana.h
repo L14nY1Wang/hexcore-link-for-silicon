@@ -59,6 +59,9 @@ static inline int liana_read_command(LianaHandle *handle, const char *command, i
     return liana_read_command_payload(handle, command, dist, NULL, 0, reply, reply_max, timeout_ms);
 }
 
+/// Raw read from the device (no command). Returns bytes or -1.
+int liana_poll(LianaHandle *handle, uint8_t *buffer, size_t max, int timeout_ms);
+
 /// TCC "Input Monitoring" state: 1 granted, 0 denied, -1 unknown.
 int liana_check_listen_access(void);
 /// Ask macOS to show the Input Monitoring prompt. Returns 1 if granted.

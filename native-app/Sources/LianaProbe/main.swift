@@ -93,6 +93,24 @@ if layerLen > 0 {
     print("keyboardLayer(0): no reply")
 }
 
+// Brightness: write 50 and watch for the device's echo frame.
+do {
+    var level: [UInt8] = [50]
+    let rc = level.withUnsafeBufferPointer {
+        liana_write(handle, "backlightBrightness", $0.baseAddress, 1, 3)
+    }
+    var frame = [UInt8](repeating: 0, count: 64)
+    let n = frame.withUnsafeMutableBufferPointer {
+        liana_poll(handle, $0.baseAddress, $0.count, 500)
+    }
+    if n > 0 {
+        let hex = frame.prefix(Int(n)).map { String(format: "%02x", $0) }.joined(separator: " ")
+        print("brightness write rc=\(rc) echo: \(hex)")
+    } else {
+        print("brightness write rc=\(rc) no echo")
+    }
+}
+
 for command in ["readFirmwareVersion", "readBatteryPercentage", "readPowerOnTime", "readDeviceType"] {
     if let data = query(command) {
         print("\(command): \(data.map { String(format: "%02x", $0) }.joined(separator: " "))")

@@ -289,6 +289,11 @@ int liana_read_command_payload(LianaHandle *h, const char *command, int dist,
     return total > 0 ? (int)total : -1;
 }
 
+int liana_poll(LianaHandle *h, uint8_t *buffer, size_t max, int timeout_ms) {
+    if (!h || !h->dev) return -1;
+    return hid_read_timeout(h->dev, buffer, max, timeout_ms);
+}
+
 static void CopyWide(char *dst, size_t cap, const wchar_t *src) {
     if (!dst || cap == 0) return;
     dst[0] = '\0';
