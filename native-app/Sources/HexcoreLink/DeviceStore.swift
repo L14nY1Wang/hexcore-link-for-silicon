@@ -55,7 +55,7 @@ final class DeviceStore: ObservableObject {
 
     init() {
         if liana_init() != 0 {
-            error = "hid_init failed"
+            error = "HID 初始化失败"
         }
         refreshPermission()
         refresh()
@@ -135,7 +135,7 @@ final class DeviceStore: ObservableObject {
     func connect(_ device: DeviceInfo) {
         disconnect()
         guard let h = liana_open(device.id, device.isUSB ? 1 : 0, Int32(device.vendorID)) else {
-            error = "Could not open \(device.product)"
+            error = "无法打开 \(device.product)"
             return
         }
         handle = h
@@ -176,7 +176,7 @@ final class DeviceStore: ObservableObject {
 
     private func readFirmware() {
         guard let data = transact("readFirmwareVersion"), data.count >= 3 else {
-            firmware = "no reply"
+            firmware = "无回复"
             return
         }
         // Six bytes: key major/minor, LED major/minor, BLE major/minor.
@@ -197,7 +197,7 @@ final class DeviceStore: ObservableObject {
 
     private func readUptime() {
         guard let data = transact("readPowerOnTime"), data.count >= 4 else {
-            uptime = "no reply"
+            uptime = "无回复"
             return
         }
         let seconds = UInt32(data[0]) | (UInt32(data[1]) << 8) | (UInt32(data[2]) << 16) | (UInt32(data[3]) << 24)
@@ -208,7 +208,7 @@ final class DeviceStore: ObservableObject {
 
     private func readUDID() {
         guard let data = transact("readUDID"), !data.isEmpty else {
-            udid = "no reply"
+            udid = "无回复"
             return
         }
         udid = data.map { String(format: "%02X", $0) }.joined()
@@ -216,7 +216,7 @@ final class DeviceStore: ObservableObject {
 
     private func readHardwareState() {
         guard let data = transact("readHardwareState"), !data.isEmpty else {
-            hardwareState = "no reply"
+            hardwareState = "无回复"
             return
         }
         hardwareState = data.map { String(format: "%02X", $0) }.joined(separator: " ")

@@ -4,6 +4,9 @@ struct ContentView: View {
     @EnvironmentObject private var store: DeviceStore
     @State private var selection: DeviceInfo.ID?
 
+    /// Points per 1u of key width.
+    private static let keyUnit: CGFloat = 36
+
     var body: some View {
         NavigationSplitView {
             List(store.devices, selection: $selection) { device in
@@ -16,7 +19,7 @@ struct ContentView: View {
                 }
                 .tag(device.id)
             }
-            .navigationTitle("Devices")
+            .navigationTitle("设备")
             .toolbar {
                 Button {
                     store.refresh()
@@ -26,6 +29,7 @@ struct ContentView: View {
                 .help("Rescan HID devices")
             }
         } detail: {
+            ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 permissionBanner
 
@@ -37,46 +41,53 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
 
                     if let battery = store.battery {
-                        LabeledContent("Battery", value: "\(battery)%")
+                        LabeledContent("电量", value: "\(battery)%")
                     }
-                    LabeledContent("Firmware", value: store.firmware)
-                    LabeledContent("Uptime", value: store.uptime)
+                    LabeledContent("固件", value: store.firmware)
+                    LabeledContent("运行时间", value: store.uptime)
                     LabeledContent("UDID") {
                         Text(store.udid).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     }
-                    LabeledContent("Hardware state") {
+                    LabeledContent("硬件状态") {
                         Text(store.hardwareState).font(.system(.caption, design: .monospaced))
                     }
 
                     HStack {
-                        Button("Read again") { store.readAll() }
-                        Button("Disconnect") { store.disconnect() }
+                        Button("重新读取") { store.readAll() }
+                        Button("断开连接") { store.disconnect() }
                     }
 
                     if let keymap = store.currentKeymap {
                         Divider().padding(.vertical, 4)
-                        Text("Layout · \(keymap.name)").font(.headline)
-                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(52), spacing: 4), count: 12), spacing: 4) {
-                            ForEach(Array(keymap.top.enumerated()), id: \.offset) { _, key in
-                                Text(key.label)
-                                    .font(.caption)
-                                    .frame(width: 52, height: 34)
-                                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+                        Text("配列 · \(keymap.name)").font(.headline)
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(Array(LayoutMap.rows(deviceModel: keymap.deviceModel).enumerated()), id: \.offset) { _, row in
+                                HStack(spacing: 4) {
+                                    ForEach(row) { slot in
+                                        if slot.index < keymap.top.count {
+                                            Text(keymap.top[slot.index].label)
+                                                .font(.caption)
+                                                .lineLimit(1)
+                                                .frame(width: CGFloat(slot.width) * Self.keyUnit, height: 34)
+                                                .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
                     if !store.layouts.isEmpty {
                         Divider().padding(.vertical, 4)
-                        Text("Layout library").font(.headline)
-                        Text("\(store.layouts.count) layouts across \(Set(store.layouts.map(\.model)).count) device models")
+                        Text("配列库").font(.headline)
+                        Text("共 \(store.layouts.count) 套配列 · \(Set(store.layouts.map(\.model)).count) 个设备型号")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                         ForEach(store.layouts.prefix(6)) { layout in
                             HStack {
                                 Text(layout.name)
                                 Spacer()
-                                Text("model \(layout.model)")
+                                Text("型号 \(layout.model)")
                                     .foregroundStyle(.secondary)
                                     .font(.caption)
                             }
@@ -86,14 +97,15 @@ struct ContentView: View {
                     Spacer()
                 } else {
                     ContentUnavailableView(
-                        "No device selected",
+                        "未选择设备",
                         systemImage: "keyboard",
-                        description: Text("Select a keyboard on the left to connect.")
+                        description: Text("在左侧选择一个键盘即可连接。")
                     )
                 }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .onChange(of: selection) { _, newValue in
             guard let id = newValue, let device = store.devices.first(where: { $0.id == id }) else {
@@ -106,7 +118,7 @@ struct ContentView: View {
             get: { !store.error.isEmpty },
             set: { if !$0 { store.error = "" } }
         )) {
-            Button("OK") { store.error = "" }
+            Button("好") { store.error = "" }
         } message: {
             Text(store.error)
         }
@@ -118,9 +130,9 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Input Monitoring permission is \(store.permission). Keyboard input will not work without it.")
+                Text("输入监控权限：\(store.permission)（未授权时无法监听键盘事件）")
                 Spacer()
-                Button("Request") { store.requestPermission() }
+                Button("请求权限") { store.requestPermission() }
             }
             .padding(12)
             .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))

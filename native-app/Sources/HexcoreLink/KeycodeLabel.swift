@@ -6,8 +6,10 @@ extension Keycode {
     var label: String {
         switch self {
         case .transparent: return ""
-        case .keyboard(let usage), .modifier(let usage):
+        case .keyboard(let usage):
             return Self.usageLabel(usage)
+        case .modifier(let usage):
+            return Self.modifierLabel(usage)
         case .layer(let n): return "FN\(n)"
         case .macro(let id): return "M\(id)"
         case .consumer: return "MEDIA"
@@ -18,6 +20,16 @@ extension Keycode {
         case .emoji: return "EMOJI"
         case .hexcore: return "HC"
         case .unknown: return "?"
+        }
+    }
+
+    private static func modifierLabel(_ usage: UInt8) -> String {
+        switch usage {
+        case 0xE0, 0xE4: return "⌃"
+        case 0xE1, 0xE5: return "⇧"
+        case 0xE2, 0xE6: return "⌥"
+        case 0xE3, 0xE7: return "⌘"
+        default: return String(format: "%02X", usage)
         }
     }
 
