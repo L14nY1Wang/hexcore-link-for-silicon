@@ -1,0 +1,11 @@
+{
+  "name": "liana-hid",
+  "version": "1.0.0",
+  "description": "arm64 reimplementation of the vendor's @hexcore/node-hid native addon",
+  "private": true,
+  "license": "MIT",
+  "gypfile": true,
+  "dependencies": {
+    "node-addon-api": "^5.0.0"
+  }
+}

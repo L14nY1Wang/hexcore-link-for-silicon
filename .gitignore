@@ -1,0 +1,22 @@
+# Build outputs and vendored vendor tree. The repo ships only the port layer.
+/build/
+/packdir/
+/vendor/
+/impl/
+/work/
+/original/
+/oracle-app/
+/skeleton/
+/src/
+node_modules/
+native/liana-hid/build/
+
+# Local artifacts
+/index.js
+/bindings.js
+/rebuild.py
+/ent2.plist
+*.zip
+*.tgz
+*.log
+.DS_Store
