@@ -20,3 +20,8 @@ native/liana-hid/build/
 *.tgz
 *.log
 .DS_Store
+
+# Swift native app build products (the icon is extracted from the vendor app)
+/native-app/.build/
+/native-app/build/
+/native-app/icon.icns
