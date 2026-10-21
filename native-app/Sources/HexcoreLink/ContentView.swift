@@ -71,6 +71,16 @@ struct ContentView: View {
                             .pickerStyle(.segmented)
                             .frame(width: 260)
                         }
+                        HStack {
+                            Button("从设备读取配列") { store.readDeviceLayer() }
+                            Button("应用当前配列到设备") { store.applyCurrentLayer() }
+                            if !store.deviceLayerStatus.isEmpty {
+                                Text(store.deviceLayerStatus)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(Array(LayoutMap.rows(deviceModel: keymap.deviceModel).enumerated()), id: \.offset) { _, row in
                                 HStack(spacing: 4) {

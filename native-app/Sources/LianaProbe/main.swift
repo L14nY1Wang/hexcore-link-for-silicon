@@ -52,13 +52,36 @@ func query(_ command: String) -> [UInt8]? {
 }
 
 var layerBuf = [UInt8](repeating: 0, count: 2048)
-var layerLen: Int32 = -1
-for dist in [0, 1, 2, 3] {
-    layerLen = layerBuf.withUnsafeMutableBufferPointer {
-        liana_read_command(handle, "readKeyboardLayer", Int32(dist), $0.baseAddress, $0.count, 800)
+var request: [UInt8] = [0]
+let layerLen: Int32 = layerBuf.withUnsafeMutableBufferPointer { out in
+    request.withUnsafeBufferPointer { req in
+        liana_read_command_payload(handle, "readKeyboardLayer", 3, req.baseAddress, 1,
+                                   out.baseAddress, out.count, 2000)
     }
-    print("keyboardLayer dist=\(dist): \(layerLen)")
-    if layerLen > 0 { break }
+}
+print("readKeyboardLayer(0): \(layerLen)")
+
+if layerLen > 1 {
+    var keys: [UInt16] = []
+    for i in stride(from: 0, to: Int(layerLen) - 1, by: 2) {
+        keys.append(UInt16(layerBuf[i]) | (UInt16(layerBuf[i + 1]) << 8))
+    }
+    // Round-trip: write the exact bytes back, then read again.
+    var payload: [UInt8] = [0]
+    for key in keys { payload.append(UInt8(key & 0xff)); payload.append(UInt8(key >> 8)) }
+    let rc = payload.withUnsafeBufferPointer {
+        liana_write(handle, "writeKeyboardLayer", $0.baseAddress, payload.count, 3)
+    }
+    usleep(300_000)
+    var verify = [UInt8](repeating: 0, count: 2048)
+    let verifyLen: Int32 = verify.withUnsafeMutableBufferPointer { out in
+        var req: [UInt8] = [0]
+        return req.withUnsafeBufferPointer { r in
+            liana_read_command_payload(handle, "readKeyboardLayer", 3, r.baseAddress, 1,
+                                       out.baseAddress, out.count, 2000)
+        }
+    }
+    print("write rc=\(rc) verifyLen=\(verifyLen) identical=\(verifyLen == layerLen && verify[0..<Int(layerLen)].elementsEqual(layerBuf[0..<Int(layerLen)]))")
 }
 if layerLen > 0 {
     var keys: [UInt16] = []

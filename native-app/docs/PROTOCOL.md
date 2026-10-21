@@ -163,31 +163,98 @@ napi 侧绑定后：`info[0]=cmdName, info[1]=cb, info[2]=syncId(=dist), info[3]
 
 ---
 
-## 3. 键盘配列（keyboardLayer）
+## 3. 键盘配列（keyboardLayer）—— 已实测
 
-> **重要**：渲染器从不发送 `uploadKbdLayout` 这个字符串。`keyboardStore.uploadKbdLayout(layer)`
-> 只是 `x("keyboardLayer", layer)` 的 JS 方法名。`kCommands` 里 `uploadKbdLayout(0x10,0x02)`
-> 与 `keyboardLayer(0x10,0x02)` 同码，属于二进制里的别名。**[确认]**
+> **实测**：2026-10-21，HEXCORE AnnePro 2D（vid `0x3311` / pid `0xA298`，
+> USB interface 1 / usagePage `0xFF00`，固件 2.5.9）直连 USB。
+> 方法：绕过渲染器，用原生 `HID.node` 手拼帧写 `hid_write`，再用读命令回读比对；
+> 另有原版 Electron（Rosetta + CDP）行为对照。
+>
+> **结论先行**：读和写**不是同一个 cmd/arg**。
+> - 读 = `0x90 / 0x01`，dist=`MCU_MAIN`(3)，payload = 1 字节 layer。
+> - 写 = `0x10 / 0x01`，dist=`MCU_MAIN`(3)，payload = `[layer 1B][每键 u16 LE …]`。
+>
+> 旧文本写的 `keyboardLayer = 0x10/0x02` 是**错的**：`0x10/0x02` 在实机上**没有任何回复**，
+> 这就是原生 probe「dist 0..3 都试过、全无回复」的原因。
 
-### 3.1 keyboardLayer（读） — `0x10 / 0x02`，dist=layer
+### 3.0 实测帧（规范形式）
 
-- **payload**：无。**dist**：layer 序号 0..3。
-- **回复**：`2 * keycapNum` 字节，按 u16 LE 逐键解析为 keycode 数组。
+链路：USB，`ver=0x12`、`base=0x02`、`max_payload=0x08`（vid≠0x7d7）。
+整包前置 report id `0x00`、补齐到 65 字节交给 `hid_write`。
+
+读 layer 0（3 个分片请求/回复，122 字节 = 61 键 × u16 LE）：
+
+```
+TX 00 7b 12 31 80 03 00 00 7d 90 01 00        # seq=0x80 首片, len=3, payload=[layer]
+RX   7b 12 13 80 38 00 00 7d 90 01 <54B>      # seq=0x80, len=0x38=56 → 54B payload
+RX   7b 12 13 81 38 00 00 7d 90 01 <54B>      # seq=0x81 续片
+RX   7b 12 13 02 10 00 00 7d 90 01 <14B>      # seq=0x02 尾片, len=0x10=16 → 14B
+```
+
+- 分片规则：每个分片头 `len` = payload+2；**首片 seq 置 `0x80|index`**，
+  尾片 seq 为裸 index（本例 3 片 → `0x80,0x81,0x02`）。
+- USB 上 `max_payload=0x08`，所以一次 `0x90/0x01` 读会拆成 16 个请求帧；
+  本实现也接受 54 字节分片（固件不校验分片长度，只按 seq/len 拼接）。
+- 回复在同一帧到达后 3–5 ms 内连续吐出 3 帧。
+
+写 layer 0（同数据回写，`下载` 流程）：
+
+```
+TX 00 7b 12 31 80 38 00 00 7d 10 01 00 <53B>   # [layer=0][key0..]  首片, seq=0x80
+RX   7b 12 13 00 03 00 00 7d 10 01 00 ...      # ack: seq=0, len=3, payload=[0]
+TX 00 7b 12 31 81 38 00 00 7d 10 01 f0 <53B>   # 续片, seq=0x81
+RX   7b 12 13 00 03 00 00 7d 10 01 01 ...      # ack payload=[1]
+TX 00 7b 12 31 02 10 00 00 7d 10 01 <12B>      # 尾片, seq=0x02
+RX   7b 12 13 00 03 00 00 7d 10 01 01 ...      # ack payload=[1]
+```
+
+- **每片都有一个 ack**：`cmd=0x10 arg=0x01`、`seq=0x00`、`len=0x0003`、
+  payload 3 字节 `[ack_byte, const, const]`（本例 `00 f0 e3` / `01 f0 e3`）。
+- `ack_byte`：首片恒 `0x00`，之后为 `0x01`。语义**未确认**（像「已接收/已写入」标志），
+  但**可以只靠 ack 判断这一片是否被固件收下**，不必回读。
+- 4 层全套回写实测：写入前后 **SHA-256 逐层完全一致**（122 B/层），
+  说明写路径的 payload 就是读回来的原始字节，不含 CRC、无转义。
+
+### 3.1 keyboardLayer（读） — `0x90 / 0x01`，dist=3
+
+- **payload**：1 字节 = layer 序号（0..3）。**dist**：`MCU_MAIN`=3（**不是** layer）。
+- **seq**：首片 `0x80`。
+- **回复**：`0x90/0x01` 分片流，合计 `2 * keycapNum` 字节（AnnePro 2D = 122 B = 61 键），
+  按 u16 LE 逐键解析。keycode 是 `0xf0XX` 形式（例：A = `f004`，Esc = `f029`）；
+  `0xf000` = 无键；`0xa0XX` 为特殊键（layer2 首键 `a030`）。
+- **dist 实测**：`dist=3` 正常；`dist=1` 只回 1 帧 3 字节（0 键）；`dist=0/2/5` 无回复。
 - **校验**：`uploadKbdLayout` 只在 `r.length === kbdProfile.keycapNum*2` 时接受，否则回空数组。
-- **调用**：
-  - `index-3fa97e8c.js` `uploadKbdLayout(layer)` / `getDefaultLayer(path, layer)`
-  - `index-792dd774.js` `getLayersById(-1)`：依次读 layer 0/1/2/3，每层间隔 `Ze(100)` ms（即 100 ms）
-- **[确认]**
+- **调用**：`index-3fa97e8c.js` `uploadKbdLayout(layer)`；`getDefaultLayer(path, layer)`
+  用 `hidWriteTo(path,"keyboardLayer",syncId,0)`（注意它把 layer 写死 0）。
+  `index-792dd774.js` `getLayersById(-1)`：依次读 layer 0/1/2/3，每层间隔 100 ms。
+- **[已实测]**
 
-### 3.2 keyboardLayer（写） — `0x10 / 0x02`，dist=layer
+> ⚠️ **原版 bug（实测）**：原版渲染器读配列走的是 `keyboardLayer`，而 `kCommands` 把
+> `keyboardLayer` 映射成 `0x10/0x02`（见 §3.2 注释）。实机上 `0x10/0x02` **无回复**，
+> 所以原版「配列」页在 AnnePro 2D 上读不出板载配列（页面停在空键盘、`下载` 按钮禁用）。
+> 能读通的是 `0x90/0x01`。原生版**必须**用 §3.1 的帧，不要照抄 `kCommands`。
 
-- **payload**：每键 u16 LE 拼接（长度 `keycapNum*2`）。调用 `he(layers)`：
+### 3.2 keyboardLayer（写） — `0x10 / 0x01`，dist=3
+
+- **payload**：`[layer 1B][key0 u16 LE][key1 u16 LE]…`，总长 `1 + keycapNum*2`（AnnePro 2D = 123 B）。
+- **dist**：`MCU_MAIN`=3。**layer 在 payload[0]，不在 dist**。
+  实测：`dist=3 + payload[0]=2` 只改 layer2，layer0/1/3 不变；`dist=0` 写入无任何效果。
+- **seq**：首片 `0x80|0`，续片 `0x80|i`，尾片裸 `i`（与读一致）。
+- **ack**：每片一条 `0x10/0x01`、`seq=0`、`len=3` 的回复（见 §3.0）。**要等 ack 再发下一片。**
+- **调用**：`index-3fa97e8c.js` `he(layers)`：
   ```js
-  r.push(...window.app.nodejs.writeUInt16LE(keycode)); await b("keyboardLayer", layer, Uint8Array.from(r))
+  r.push(...window.app.nodejs.writeUInt16LE(keycode));
+  await b("keyboardLayer", layer, Uint8Array.from(r));   // b = hidWriteWithSyncId
   ```
-  → `writeTo("keyboardLayer", cb, syncId, layer, buf)`，dist=layer、payload=buf。
-- **回复**：无（不等待）。**[推断]**
-- ⚠️ 当前 native `WriteTo` 只读 `info[3]`，这条路径会丢 payload（见 §1.4）。
+  → 厂商 `Liana::keyboardLayer`（`@0x11c20`）：`info[3]`=dist、`info[4]`=layer，
+  再把 layer 字节**前置拼进 payload** 后分片。
+- **渲染器「下载」按钮**（`index-792dd774.js` `w` 回调）会连着写 4 层，写完刷提示
+  `common.download.success`；写之前要求 4 层都非空。
+- **[已实测]**（4 层往返后 SHA-256 一致）
+
+**写路径对 native 的要求**：`WriteTo` 需要收 `(cmdName, cb, syncId, dist, layer, buf)` 六个参数——
+`info[3]`=dist(3)、`info[4]`=layer、`info[5]`=payload。当前实现只读 `info[3]` 当 dist、
+丢掉 layer 和 buf（见 §1.4），所以这条路径目前发不出正确帧。
 
 ### 3.3 kbdLayoutType — `0x10 / 0xf1`
 
@@ -481,7 +548,9 @@ reinit/masterId/masterInfo`，调用点在 `index-3245b65a.js`（`G/J/Q/Ct/fe/he
    `wl24gSlaveDel (0x41/0x03)`、`previewLight (0x03)`、`previewLightbar (0x20/0x21)`、
    `lightbarLed (0x21)`、`writeIndicatorBrightness (0x20/0x14)`、`indicatorKBMode/Color (0x20/0x19,0x1b)`。
 2. `WriteTo` 参数映射需按 §1.4 修正：`info[3]` 数字 = 单字节 payload（不是 dist），
-   `info[4]` = 大 payload；`keyboardLayer` 需同时接受 `(dist=layer, buf)`。
+   `info[4]` = 大 payload；`keyboardLayer` 的实测签名是 `(dist=3, layer, buf)`
+   → `info[3]`=dist、`info[4]`=layer、`info[5]`=buf，且 layer 字节要**前置拼进 payload**（见 §3.2）。
+   另外 `kCommands` 里 `keyboardLayer (0x10,0x02)` 应拆成 `读 0x90/0x01`、`写 0x10/0x01`。
 3. `ReplyLenFor` 需要补：`readMacroConfig`(2)、`keycapStyle`(2)、`readCapslockLedColor`(3)、
    `lightbarIndicatorColor`(3)、`kbdLayoutParam`(调用方指定)、`readMacroApp`(变长)。
 4. §6 音效下发的真实入口仍需抓到实机报文才能确认。

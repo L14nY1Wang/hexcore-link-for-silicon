@@ -45,6 +45,8 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var currentKeymap: Keymap?
     @Published var layerIndex: Int = 0
     @Published private(set) var selectedLayoutID: Int?
+    @Published private(set) var deviceLayerKeys: [UInt16] = []
+    @Published private(set) var deviceLayerStatus: String = ""
 
     private var keymapsByID: [Int: Keymap] = [:]
 
@@ -156,6 +158,45 @@ final class DeviceStore: ObservableObject {
             selectedLayoutID = first.id
             currentKeymap = keymapsByID[first.id]
         }
+    }
+
+    func readDeviceLayer() {
+        guard let handle else { return }
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        var request: [UInt8] = [UInt8(layerIndex)]
+        let length = buffer.withUnsafeMutableBufferPointer { out in
+            request.withUnsafeBufferPointer { req in
+                liana_read_command_payload(handle, "readKeyboardLayer", 3,
+                                           req.baseAddress, 1, out.baseAddress, out.count, 2000)
+            }
+        }
+        guard length > 1 else {
+            deviceLayerKeys = []
+            deviceLayerStatus = "设备无回复"
+            return
+        }
+        var keys: [UInt16] = []
+        for i in stride(from: 0, to: Int(length) - 1, by: 2) {
+            keys.append(UInt16(buffer[i]) | (UInt16(buffer[i + 1]) << 8))
+        }
+        deviceLayerKeys = keys
+        deviceLayerStatus = "读取 \(keys.count) 键"
+    }
+
+    func applyCurrentLayer() {
+        guard let handle, !currentKeys.isEmpty else { return }
+        var payload: [UInt8] = [UInt8(layerIndex)]
+        for key in currentKeys {
+            let raw = UInt16(key.raw)
+            payload.append(UInt8(raw & 0xff))
+            payload.append(UInt8(raw >> 8))
+        }
+        let rc = payload.withUnsafeBufferPointer {
+            liana_write(handle, "writeKeyboardLayer", $0.baseAddress, payload.count, 3)
+        }
+        deviceLayerStatus = rc == 0
+            ? "已写入 \(currentKeys.count) 键到层 \(layerIndex)"
+            : "写入失败"
     }
 
     func connect(_ device: DeviceInfo) {

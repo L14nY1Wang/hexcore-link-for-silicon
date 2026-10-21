@@ -53,8 +53,12 @@ static const CmdSpec kCommands[] = {
     {"readIapFwVersion", 0x01, 0x03},
     {"writeIapMemory", 0x04, 0x00},
     {"writeEraseMemory", 0x05, 0x00},
-    {"keyboardLayer", 0x10, 0x02},
-    {"readKeyboardLayer", 0x90, 0x02},
+    // Measured on an Anne Pro 2D: reading is 0x90/0x01 with latency=3,
+    // writing is 0x10/0x01 with the layer byte prepended to the payload.
+    // The vendor renderer uses 0x10/0x02 for reads, which this firmware
+    // ignores; that is a vendor bug, not a protocol variant.
+    {"readKeyboardLayer", 0x90, 0x01},
+    {"writeKeyboardLayer", 0x10, 0x01},
     {"uploadKbdLayout", 0x10, 0x02},
     {"kbdMagicFn", 0x10, 0x03},
     {"kbdTap", 0x10, 0x05},
@@ -242,11 +246,12 @@ int liana_transact(LianaHandle *h, const char *command, const uint8_t *payload,
     return -1;
 }
 
-int liana_read_command(LianaHandle *h, const char *command, int dist,
-                       uint8_t *reply, size_t reply_max, int timeout_ms) {
+int liana_read_command_payload(LianaHandle *h, const char *command, int dist,
+                               const uint8_t *payload, size_t length,
+                               uint8_t *reply, size_t reply_max, int timeout_ms) {
     const CmdSpec *spec = FindCommand(command);
     if (!spec || !h || !h->dev) return -1;
-    if (SendCommand(h, spec->cmd, spec->arg, (uint8_t)dist, NULL, 0) < 0) return -1;
+    if (SendCommand(h, spec->cmd, spec->arg, (uint8_t)dist, payload, length) < 0) return -1;
 
     const int64_t deadline = NowMs() + (timeout_ms > 0 ? timeout_ms : 1500);
     size_t total = 0;
