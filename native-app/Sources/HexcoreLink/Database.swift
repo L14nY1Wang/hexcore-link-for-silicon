@@ -21,14 +21,41 @@ final class VendorDatabase {
     private(set) var lastError = ""
 
     init?(path: String) {
-        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
             lastError = String(cString: sqlite3_errmsg(db))
             Self.lastOpenError = lastError
             sqlite3_close(db)
             db = nil
             return nil
         }
+        sqlite3_busy_timeout(db, 3000)
         guard exec("PRAGMA key='\(Self.cipherKey)'"), exec(Self.canary) else { return nil }
+    }
+
+    /// Persist an edited keymap. The vendor stores each layer as a JSON array
+    /// of raw keycode numbers.
+    func updateKeymap(id: Int, top: [Int], fn1: [Int], fn2: [Int], tap: [Int]) -> Bool {
+        let sql = "UPDATE kbd_keymap SET top = ?, fn1 = ?, fn2 = ?, tap = ? WHERE id = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            lastError = String(cString: sqlite3_errmsg(db))
+            return false
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        let json = { (values: [Int]) in "[" + values.map(String.init).joined(separator: ",") + "]" }
+        sqlite3_bind_text(stmt, 1, json(top), -1, transient)
+        sqlite3_bind_text(stmt, 2, json(fn1), -1, transient)
+        sqlite3_bind_text(stmt, 3, json(fn2), -1, transient)
+        sqlite3_bind_text(stmt, 4, json(tap), -1, transient)
+        sqlite3_bind_int64(stmt, 5, Int64(id))
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            lastError = String(cString: sqlite3_errmsg(db))
+            return false
+        }
+        return true
     }
 
     deinit { sqlite3_close(db) }

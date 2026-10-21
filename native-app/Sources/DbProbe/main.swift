@@ -58,3 +58,20 @@ if !unknown.isEmpty {
 }
 
 if !db.lastError.isEmpty { print("lastError: \(db.lastError)") }
+
+// Round-trip one keymap through updateKeymap (same values) to exercise the
+// write path without changing the user's data.
+if let database = VendorDatabase(path: NSHomeDirectory() + "/Library/Application Support/hexcore-link/hexcore-link.db"),
+   let row = database.keymaps(deviceModel: 2).first(where: { ($0["name"] as? String) == "intl.keymap.qwerty" }),
+   let keymap = Keymap.parse(row: row) {
+    let ok = database.updateKeymap(
+        id: keymap.id,
+        top: keymap.top.map(\.raw),
+        fn1: keymap.fn1.map(\.raw),
+        fn2: keymap.fn2.map(\.raw),
+        tap: keymap.tap.map(\.raw)
+    )
+    let reloaded = database.keymaps(deviceModel: 2).first { ($0["id"] as? Int64) == Int64(keymap.id) }
+    let parsed = reloaded.flatMap(Keymap.parse(row:))
+    print("updateKeymap ok=\(ok) identical=\(parsed?.top == keymap.top && parsed?.fn1 == keymap.fn1 && parsed?.fn2 == keymap.fn2 && parsed?.tap == keymap.tap)")
+}

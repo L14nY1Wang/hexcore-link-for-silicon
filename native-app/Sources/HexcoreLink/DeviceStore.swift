@@ -49,6 +49,7 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var selectedLayoutID: Int?
     @Published private(set) var deviceLayerKeys: [UInt16] = []
     @Published private(set) var deviceLayerStatus: String = ""
+    @Published private(set) var hasUnsavedEdits = false
     @Published private(set) var brightness: Int = 50
     @Published var page: Page = .overview
 
@@ -208,6 +209,20 @@ final class DeviceStore: ObservableObject {
         }
         currentKeymap = keymap
         if let id = selectedLayoutID { keymapsByID[id] = keymap }
+        hasUnsavedEdits = true
+    }
+
+    func saveCurrentLayout() {
+        guard let database, let keymap = currentKeymap else { return }
+        let ok = database.updateKeymap(
+            id: keymap.id,
+            top: keymap.top.map(\.raw),
+            fn1: keymap.fn1.map(\.raw),
+            fn2: keymap.fn2.map(\.raw),
+            tap: keymap.tap.map(\.raw)
+        )
+        deviceLayerStatus = ok ? "已保存到本地配列库" : "保存失败：\(database.lastError)"
+        if ok { hasUnsavedEdits = false }
     }
 
     func readDeviceLayer() {
@@ -230,7 +245,15 @@ final class DeviceStore: ObservableObject {
             keys.append(UInt16(buffer[i]) | (UInt16(buffer[i + 1]) << 8))
         }
         deviceLayerKeys = keys
-        deviceLayerStatus = "读取 \(keys.count) 键"
+        let current = currentKeys.map { UInt16($0.raw) }
+        if current.count == keys.count {
+            let differences = zip(current, keys).filter { $0 != $1 }.count
+            deviceLayerStatus = differences == 0
+                ? "读取 \(keys.count) 键 · 与当前配列一致"
+                : "读取 \(keys.count) 键 · \(differences) 处差异"
+        } else {
+            deviceLayerStatus = "读取 \(keys.count) 键"
+        }
     }
 
     func previewColor(_ color: Color) {

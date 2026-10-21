@@ -37,9 +37,19 @@ struct LayoutView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("配列").font(.title2.bold())
-                Text(store.currentKeymap.map { "\($0.name) · \($0.top.count) 键" } ?? "未选择配列")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Text(store.currentKeymap.map { "\($0.name) · \($0.top.count) 键" } ?? "未选择配列")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    if store.hasUnsavedEdits {
+                        Text("未保存")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.orange.opacity(0.15), in: Capsule())
+                    }
+                }
             }
             Spacer()
             Picker("层", selection: $store.layerIndex) {
@@ -58,6 +68,8 @@ struct LayoutView: View {
             Button("从设备读取") { store.readDeviceLayer() }
             Button("应用到设备") { store.applyCurrentLayer() }
                 .disabled(store.connected == nil || store.currentKeys.isEmpty)
+            Button("保存到配列库") { store.saveCurrentLayout() }
+                .disabled(store.currentKeymap == nil)
             if !store.deviceLayerStatus.isEmpty {
                 Text(store.deviceLayerStatus)
                     .font(.callout)
