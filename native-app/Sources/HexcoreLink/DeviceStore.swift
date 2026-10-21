@@ -43,6 +43,26 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var permission: String = "unknown"
     @Published private(set) var layouts: [LayoutSummary] = []
     @Published private(set) var currentKeymap: Keymap?
+    @Published var layerIndex: Int = 0
+    @Published private(set) var selectedLayoutID: Int?
+
+    private var keymapsByID: [Int: Keymap] = [:]
+
+    var currentKeys: [Keycode] {
+        guard let keymap = currentKeymap else { return [] }
+        switch layerIndex {
+        case 1: return keymap.fn1
+        case 2: return keymap.fn2
+        case 3: return keymap.tap
+        default: return keymap.top
+        }
+    }
+
+    func selectLayout(_ id: Int) {
+        guard let keymap = keymapsByID[id] else { return }
+        selectedLayoutID = id
+        currentKeymap = keymap
+    }
 
     struct LayoutSummary: Identifiable, Hashable {
         let id: Int
@@ -120,15 +140,21 @@ final class DeviceStore: ObservableObject {
         for model in database.deviceModels() {
             for row in database.keymaps(deviceModel: model) {
                 guard let id = row["id"] as? Int64, let name = row["name"] as? String else { continue }
-                items.append(LayoutSummary(id: Int(id), name: name, model: model))
+                let summary = LayoutSummary(id: Int(id), name: name, model: model)
+                items.append(summary)
+                if let keymap = Keymap.parse(row: row) {
+                    keymapsByID[summary.id] = keymap
+                }
             }
         }
         layouts = items
         // The Anne Pro 2D uses device model 2; show its QWERTY layout first.
-        if let row = database.keymaps(deviceModel: 2).first(where: { ($0["name"] as? String) == "intl.keymap.qwerty" }) {
-            currentKeymap = Keymap.parse(row: row)
-        } else {
-            currentKeymap = database.keymaps(deviceModel: 2).first.flatMap(Keymap.parse(row:))
+        if let match = items.first(where: { $0.model == 2 && $0.name == "intl.keymap.qwerty" }) {
+            selectedLayoutID = match.id
+            currentKeymap = keymapsByID[match.id]
+        } else if let first = items.first {
+            selectedLayoutID = first.id
+            currentKeymap = keymapsByID[first.id]
         }
     }
 

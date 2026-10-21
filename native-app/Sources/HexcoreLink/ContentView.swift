@@ -59,7 +59,18 @@ struct ContentView: View {
 
                     if let keymap = store.currentKeymap {
                         Divider().padding(.vertical, 4)
-                        Text("配列 · \(keymap.name)").font(.headline)
+                        HStack {
+                            Text("配列 · \(keymap.name)").font(.headline)
+                            Spacer()
+                            Picker("层", selection: $store.layerIndex) {
+                                Text("Top").tag(0)
+                                Text("Fn1").tag(1)
+                                Text("Fn2").tag(2)
+                                Text("Tap").tag(3)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 260)
+                        }
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(Array(LayoutMap.rows(deviceModel: keymap.deviceModel).enumerated()), id: \.offset) { _, row in
                                 HStack(spacing: 4) {
@@ -83,14 +94,20 @@ struct ContentView: View {
                         Text("共 \(store.layouts.count) 套配列 · \(Set(store.layouts.map(\.model)).count) 个设备型号")
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                        ForEach(store.layouts.prefix(6)) { layout in
-                            HStack {
-                                Text(layout.name)
-                                Spacer()
-                                Text("型号 \(layout.model)")
-                                    .foregroundStyle(.secondary)
-                                    .font(.caption)
+                        ForEach(store.layouts.prefix(8)) { layout in
+                            Button {
+                                store.selectLayout(layout.id)
+                            } label: {
+                                HStack {
+                                    Text(layout.name)
+                                        .fontWeight(store.selectedLayoutID == layout.id ? .semibold : .regular)
+                                    Spacer()
+                                    Text("型号 \(layout.model)")
+                                        .foregroundStyle(.secondary)
+                                        .font(.caption)
+                                }
                             }
+                            .buttonStyle(.plain)
                             .font(.callout)
                         }
                     }
