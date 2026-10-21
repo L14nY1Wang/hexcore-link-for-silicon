@@ -53,6 +53,19 @@ struct ContentView: View {
                         Button("Disconnect") { store.disconnect() }
                     }
 
+                    if let keymap = store.currentKeymap {
+                        Divider().padding(.vertical, 4)
+                        Text("Layout · \(keymap.name)").font(.headline)
+                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(52), spacing: 4), count: 12), spacing: 4) {
+                            ForEach(Array(keymap.top.enumerated()), id: \.offset) { _, key in
+                                Text(key.label)
+                                    .font(.caption)
+                                    .frame(width: 52, height: 34)
+                                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+                            }
+                        }
+                    }
+
                     if !store.layouts.isEmpty {
                         Divider().padding(.vertical, 4)
                         Text("Layout library").font(.headline)

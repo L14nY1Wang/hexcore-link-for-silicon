@@ -42,6 +42,7 @@ final class DeviceStore: ObservableObject {
     @Published var error: String = ""
     @Published private(set) var permission: String = "unknown"
     @Published private(set) var layouts: [LayoutSummary] = []
+    @Published private(set) var currentKeymap: Keymap?
 
     struct LayoutSummary: Identifiable, Hashable {
         let id: Int
@@ -123,6 +124,12 @@ final class DeviceStore: ObservableObject {
             }
         }
         layouts = items
+        // The Anne Pro 2D uses device model 2; show its QWERTY layout first.
+        if let row = database.keymaps(deviceModel: 2).first(where: { ($0["name"] as? String) == "intl.keymap.qwerty" }) {
+            currentKeymap = Keymap.parse(row: row)
+        } else {
+            currentKeymap = database.keymaps(deviceModel: 2).first.flatMap(Keymap.parse(row:))
+        }
     }
 
     func connect(_ device: DeviceInfo) {

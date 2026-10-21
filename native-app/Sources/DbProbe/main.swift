@@ -23,12 +23,38 @@ if let sample = db.keymaps(deviceModel: db.deviceModels().first ?? 2).first {
     print("sample deviceModel=\(sample["deviceModel"] ?? "?"), name=\(sample["name"] ?? "?")")
 }
 
+var keymaps: [Keymap] = []
 for model in db.deviceModels() {
-    guard let row = db.keymaps(deviceModel: model).first else { continue }
-    for col in ["top", "fn1", "fn2", "tap", "macro"] {
-        let s = String(describing: row[col] ?? "nil")
-        print("[\(model)] \(col) (\(s.count)): \(s.prefix(300))")
+    for row in db.keymaps(deviceModel: model) {
+        guard let keymap = Keymap.parse(row: row) else {
+            print("unparsed row (deviceModel \(model)): \(row["id"] ?? "?")")
+            continue
+        }
+        keymaps.append(keymap)
     }
-    break
 }
+
+print("parsed keymaps: \(keymaps.count)")
+for keymap in keymaps {
+    print(String(format: "  model %2d %-28s top=%d fn1=%d fn2=%d tap=%d default=%@",
+                 keymap.deviceModel, (keymap.name as NSString).utf8String!,
+                 keymap.top.count, keymap.fn1.count, keymap.fn2.count, keymap.tap.count,
+                 keymap.isDefault ? "y" : "n"))
+}
+
+if let sample = keymaps.first {
+    print("sample: \(sample.name) id=\(sample.id) deviceModel=\(sample.deviceModel)")
+    for (i, key) in sample.top.prefix(6).enumerated() {
+        print("  top[\(i)] raw=\(key.raw) -> \(key)")
+    }
+}
+
+let allKeys = keymaps.flatMap { $0.top + $0.fn1 + $0.fn2 + $0.tap }
+let unknown = allKeys.filter { if case .unknown = $0 { return true } else { return false } }
+let roundTrip = allKeys.allSatisfy { Keycode(raw: $0.raw) == $0 }
+print("decoded keys: \(allKeys.count), unknown: \(unknown.count), round-trip: \(roundTrip)")
+if !unknown.isEmpty {
+    print("unknown raws: \(Set(unknown.map(\.raw)).sorted().map { String($0, radix: 16) })")
+}
+
 if !db.lastError.isEmpty { print("lastError: \(db.lastError)") }

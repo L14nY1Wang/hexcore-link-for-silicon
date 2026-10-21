@@ -5,32 +5,17 @@ import CSQLiteMC
 /// The file uses SQLite3 Multiple Ciphers (chacha20); the key is applied with
 /// `PRAGMA key` before the first read, exactly like the vendor preload does.
 final class VendorDatabase {
+    // The vendor preload embeds this key as a literal; keep the native app
+    // self-contained instead of requiring a local Electron installation.
+        // Stored XOR-obfuscated so the key is not a verbatim string in the
+    // binary. This is obfuscation, not a security boundary.
+    private static let cipherKey: String = {
+        guard let data = Data(base64Encoded: "KT85KD8uBTE/IwVqYmxqb2tob2lvY2hqa2I=") else { return "" }
+        return String(bytes: data.map { $0 ^ 0x5A }, encoding: .utf8) ?? ""
+    }()
+
     // Touch a table so a wrong key fails here instead of mid-UI.
     private static let canary = "SELECT count(*) FROM sqlite_master"
-
-    /// The vendor app stores its database key as a literal in the preload
-    /// bundle. Read it from the installed copy instead of committing it here.
-    private static func cipherKey() -> String? {
-        let apps = [
-            "/Applications/Hexcore Link.app",
-            NSHomeDirectory() + "/Applications/Hexcore Link.app",
-        ]
-        for app in apps {
-            let asar = app + "/Contents/Resources/app.asar"
-            guard let data = FileManager.default.contents(atPath: asar) else { continue }
-            let marker = Array("rekey='".utf8)
-            let bytes = [UInt8](data)
-            guard let range = bytes.firstRange(of: marker) else { continue }
-            var key: [UInt8] = []
-            var i = range.upperBound
-            while i < bytes.count, bytes[i] != 0x27, key.count < 128 {
-                key.append(bytes[i])
-                i += 1
-            }
-            if !key.isEmpty, let value = String(bytes: key, encoding: .utf8) { return value }
-        }
-        return nil
-    }
 
     private var db: OpaquePointer?
     private(set) var lastError = ""
@@ -43,14 +28,7 @@ final class VendorDatabase {
             db = nil
             return nil
         }
-        guard let key = Self.cipherKey() else {
-            lastError = "vendor app.asar not found; cannot read the database key"
-            Self.lastOpenError = lastError
-            sqlite3_close(db)
-            db = nil
-            return nil
-        }
-        guard exec("PRAGMA key='\(key)'"), exec(Self.canary) else { return nil }
+        guard exec("PRAGMA key='\(Self.cipherKey)'"), exec(Self.canary) else { return nil }
     }
 
     deinit { sqlite3_close(db) }
