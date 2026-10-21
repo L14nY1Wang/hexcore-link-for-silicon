@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Sheet for assigning a keycode to a layout slot.
+/// Sheet for assigning a keycode to a layout slot. Categories mirror the
+/// vendor app; keys carry an SF Symbol where the vendor shows an icon.
 struct KeyPickerView: View {
     @Environment(\.dismiss) private var dismiss
     private let onPick: (Keycode) -> Void
@@ -15,19 +16,13 @@ struct KeyPickerView: View {
     var body: some View {
         VStack(spacing: 12) {
             header
-            Picker("分类", selection: $category) {
-                ForEach(KeyCategory.allCases) { category in
-                    Text(category.title).tag(category)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            categoryBar
             searchField
             Divider()
             grid
         }
         .padding(16)
-        .frame(width: 520, height: 420)
+        .frame(width: 580, height: 470)
     }
 
     private var header: some View {
@@ -35,6 +30,34 @@ struct KeyPickerView: View {
             Text("选择键位").font(.headline)
             Spacer()
             Text("\(items.count) 个").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var categoryBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(KeyCategory.allCases) { item in
+                    Button {
+                        category = item
+                    } label: {
+                        Text(item.title)
+                            .font(.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                category == item ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.12),
+                                in: Capsule()
+                            )
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    category == item ? Color.accentColor : .clear, lineWidth: 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 1)
         }
     }
 
@@ -55,102 +78,48 @@ struct KeyPickerView: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 
+    private var items: [KeyChoice] {
+        if query.isEmpty {
+            return KeyCatalog.matches(category, query: "")
+        }
+        return KeyCatalog.all.filter { $0.title.localizedCaseInsensitiveContains(query) }
+    }
+
     private var grid: some View {
         ScrollView {
             if items.isEmpty {
-                Text("无匹配结果")
-                    .font(.callout)
+                Text("没有匹配的键位")
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 120)
+                    .padding(.top, 40)
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64, maximum: 92), spacing: 6)], spacing: 6) {
-                    ForEach(items) { item in
-                        Button { pick(item.key) } label: {
-                            Text(item.name)
-                                .font(.caption)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                                .frame(maxWidth: .infinity, minHeight: 28)
-                                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 5))
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
+                    ForEach(items) { choice in
+                        Button {
+                            onPick(choice.key)
+                            dismiss()
+                        } label: {
+                            VStack(spacing: 4) {
+                                if let symbol = choice.symbol {
+                                    Image(systemName: symbol)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .frame(height: 18)
+                                } else {
+                                    Spacer().frame(height: 18)
+                                }
+                                Text(choice.title)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help(item.name)
                     }
                 }
             }
-        }
-    }
-
-    private func pick(_ key: Keycode) {
-        onPick(key)
-        dismiss()
-    }
-
-    private var items: [Item] {
-        let term = query.trimmingCharacters(in: .whitespaces)
-        guard !term.isEmpty else {
-            return Self.all.filter { $0.category == category }
-        }
-        return Self.all.filter { $0.name.localizedCaseInsensitiveContains(term) }
-    }
-
-    private static let hexcoreItems: [Item] = [
-        Item(key: .transparent, name: "透明", category: .hexcore),
-    ] + (0...3).map {
-        Item(key: .layer($0), name: "层 \($0)", category: .hexcore)
-    }
-
-    private static let mediaItems: [Item] = KeycodeNames.media.map {
-        Item(key: .consumer($0.code), name: $0.name, category: .media)
-    }
-
-    private static let keyboardItems: [Item] = KeycodeNames.keyboard
-        .sorted { $0.key < $1.key }
-        .map { usage, name in
-            let key: Keycode = usage >= 0xE0 ? .modifier(usage) : .keyboard(usage)
-            return Item(key: key, name: name, category: category(for: usage))
-        }
-
-    private static let all: [Item] = keyboardItems + mediaItems + hexcoreItems
-
-    private static func category(for usage: UInt8) -> KeyCategory {
-        switch usage {
-        case 4...29: return .letters
-        case 30...39, 89...98: return .numbers
-        case 45...56, 84...88, 99, 100, 103, 133, 134: return .symbols
-        case 57, 58...72, 83, 104...115: return .function
-        case 73...82: return .navigation
-        case 127...129: return .media
-        case 224...231: return .modifiers
-        default: return .other
-        }
-    }
-}
-
-private struct Item: Identifiable {
-    let key: Keycode
-    let name: String
-    let category: KeyCategory
-
-    var id: Int { key.raw }
-}
-
-private enum KeyCategory: String, CaseIterable, Identifiable {
-    case letters, numbers, symbols, function, navigation, modifiers, media, hexcore, other
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .letters: return "字符"
-        case .numbers: return "数字"
-        case .symbols: return "符号"
-        case .function: return "功能键"
-        case .navigation: return "导航"
-        case .modifiers: return "修饰"
-        case .media: return "媒体"
-        case .hexcore: return "Hexcore"
-        case .other: return "其他"
         }
     }
 }
