@@ -66,6 +66,7 @@ static const CmdSpec kCommands[] = {
     {"kbdTapkeyTimeout", 0x10, 0x13},
     {"kbdLayoutType", 0x10, 0xf1},
     {"toggleLed", 0x20, 0x01},
+    {"previewLight", 0x03, 0x00},
     {"previewLightWithoutThrottle", 0x03, 0x00},
     {"downloadLight", 0x20, 0x02},
     {"lightHoldOn", 0x20, 0x0d},

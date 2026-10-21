@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import Combine
 import Foundation
 import CLiana
@@ -48,8 +50,39 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var deviceLayerKeys: [UInt16] = []
     @Published private(set) var deviceLayerStatus: String = ""
     @Published private(set) var brightness: Int = 50
+    @Published var page: Page = .overview
+
+    enum Page: String, CaseIterable, Identifiable {
+        case overview, layout, lighting, macros, settings
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .overview: return "总览"
+            case .layout: return "配列"
+            case .lighting: return "灯光"
+            case .macros: return "宏"
+            case .settings: return "设置"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .overview: return "gauge"
+            case .layout: return "keyboard"
+            case .lighting: return "lightbulb"
+            case .macros: return "record.circle"
+            case .settings: return "gearshape"
+            }
+        }
+    }
 
     private var keymapsByID: [Int: Keymap] = [:]
+
+    var keyboardModel: Int { currentKeymap?.deviceModel ?? 2 }
+
+    var layoutsForDevice: [LayoutSummary] {
+        let onDevice = layouts.filter { $0.model == keyboardModel }
+        return onDevice.isEmpty ? layouts : onDevice
+    }
 
     var currentKeys: [Keycode] {
         guard let keymap = currentKeymap else { return [] }
@@ -83,6 +116,10 @@ final class DeviceStore: ObservableObject {
         refreshPermission()
         refresh()
         openDatabase()
+        if let raw = ProcessInfo.processInfo.environment["HEXCORE_START_PAGE"],
+           let start = Page(rawValue: raw) {
+            page = start
+        }
     }
 
     deinit {
@@ -182,6 +219,21 @@ final class DeviceStore: ObservableObject {
         }
         deviceLayerKeys = keys
         deviceLayerStatus = "读取 \(keys.count) 键"
+    }
+
+    func previewColor(_ color: Color) {
+        guard let handle else { return }
+        let ns = NSColor(color).usingColorSpace(.sRGB) ?? .red
+        let payload: [UInt8] = [
+            1, 255,
+            UInt8(max(0, min(255, ns.redComponent * 255))),
+            UInt8(max(0, min(255, ns.greenComponent * 255))),
+            UInt8(max(0, min(255, ns.blueComponent * 255))),
+        ]
+        _ = payload.withUnsafeBufferPointer {
+            liana_write(handle, "previewLight", $0.baseAddress, payload.count, 0)
+        }
+        deviceLayerStatus = "已预览颜色"
     }
 
     func setBrightness(_ value: Int) {
