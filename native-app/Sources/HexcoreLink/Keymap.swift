@@ -66,10 +66,10 @@ struct Keymap {
     let id: Int
     let name: String
     let deviceModel: Int
-    let top: [Keycode]
-    let fn1: [Keycode]
-    let fn2: [Keycode]
-    let tap: [Keycode]
+    var top: [Keycode]
+    var fn1: [Keycode]
+    var fn2: [Keycode]
+    var tap: [Keycode]
     let isDefault: Bool
     let isChanged: Bool
     let quickNumber: Int?

@@ -198,6 +198,18 @@ final class DeviceStore: ObservableObject {
         }
     }
 
+    func setKey(_ index: Int, to key: Keycode) {
+        guard var keymap = currentKeymap, index < currentKeys.count else { return }
+        switch layerIndex {
+        case 1: keymap.fn1[index] = key
+        case 2: keymap.fn2[index] = key
+        case 3: keymap.tap[index] = key
+        default: keymap.top[index] = key
+        }
+        currentKeymap = keymap
+        if let id = selectedLayoutID { keymapsByID[id] = keymap }
+    }
+
     func readDeviceLayer() {
         guard let handle else { return }
         var buffer = [UInt8](repeating: 0, count: 1024)

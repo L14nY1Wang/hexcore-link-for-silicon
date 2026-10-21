@@ -68,7 +68,7 @@ extension Keycode {
         case 80: return "←"
         case 81: return "↓"
         case 82: return "↑"
-        default: return String(format: "%02X", usage)
+        default: return KeycodeNames.keyboard[usage] ?? String(format: "%02X", usage)
         }
     }
 }

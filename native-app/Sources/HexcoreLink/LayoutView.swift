@@ -3,7 +3,12 @@ import SwiftUI
 struct LayoutView: View {
     @EnvironmentObject private var store: DeviceStore
     @State private var selectedKey: Int?
+    @State private var editing: KeyEditTarget?
     private let keyUnit: CGFloat = 36
+
+    private struct KeyEditTarget: Identifiable {
+        let id: Int
+    }
 
     var body: some View {
         ScrollView {
@@ -19,6 +24,12 @@ struct LayoutView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .sheet(item: $editing) { target in
+            KeyPickerView { key in
+                store.setKey(target.id, to: key)
+                editing = nil
+            }
         }
     }
 
@@ -75,6 +86,7 @@ struct LayoutView: View {
         let selected = selectedKey == slot.index
         return Button {
             selectedKey = slot.index
+            editing = KeyEditTarget(id: slot.index)
         } label: {
             Text(label)
                 .font(.caption)
