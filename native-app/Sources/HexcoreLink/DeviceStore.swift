@@ -177,7 +177,19 @@ final class DeviceStore: ObservableObject {
         guard FileManager.default.fileExists(atPath: path),
               let database = VendorDatabase(path: path) else { return }
         self.database = database
+        reloadLibrary()
+        // The Anne Pro 2D uses device model 2; show its QWERTY layout first.
+        if let match = layouts.first(where: { $0.model == 2 && $0.name == "intl.keymap.qwerty" }) {
+            selectLayout(match.id)
+        } else if let first = layouts.first {
+            selectLayout(first.id)
+        }
+    }
+
+    private func reloadLibrary() {
+        guard let database else { return }
         var items: [LayoutSummary] = []
+        keymapsByID.removeAll()
         for model in database.deviceModels() {
             for row in database.keymaps(deviceModel: model) {
                 guard let id = row["id"] as? Int64, let name = row["name"] as? String else { continue }
@@ -189,13 +201,48 @@ final class DeviceStore: ObservableObject {
             }
         }
         layouts = items
-        // The Anne Pro 2D uses device model 2; show its QWERTY layout first.
-        if let match = items.first(where: { $0.model == 2 && $0.name == "intl.keymap.qwerty" }) {
-            selectedLayoutID = match.id
-            currentKeymap = keymapsByID[match.id]
-        } else if let first = items.first {
-            selectedLayoutID = first.id
-            currentKeymap = keymapsByID[first.id]
+        if let id = selectedLayoutID, let keymap = keymapsByID[id] {
+            currentKeymap = keymap
+        }
+    }
+
+    func duplicateCurrentLayout() {
+        guard let database, let keymap = currentKeymap else { return }
+        guard let id = database.insertKeymap(
+            name: keymap.name + " 副本",
+            deviceModel: keymap.deviceModel,
+            top: keymap.top.map(\.raw),
+            fn1: keymap.fn1.map(\.raw),
+            fn2: keymap.fn2.map(\.raw),
+            tap: keymap.tap.map(\.raw)
+        ) else {
+            deviceLayerStatus = "复制失败：\(database.lastError)"
+            return
+        }
+        selectedLayoutID = Int(id)
+        reloadLibrary()
+        deviceLayerStatus = "已复制为新的配列"
+    }
+
+    func renameSelectedLayout(to name: String) {
+        guard let database, let id = selectedLayoutID, !name.isEmpty else { return }
+        if database.renameKeymap(id: id, name: name) {
+            reloadLibrary()
+            deviceLayerStatus = "已重命名"
+        } else {
+            deviceLayerStatus = "重命名失败：\(database.lastError)"
+        }
+    }
+
+    func deleteSelectedLayout() {
+        guard let database, let id = selectedLayoutID else { return }
+        if database.deleteKeymap(id: id) {
+            selectedLayoutID = layouts.first(where: { $0.id != id })?.id
+            if let next = selectedLayoutID { currentKeymap = keymapsByID[next] }
+            reloadLibrary()
+            deviceLayerStatus = "已删除配列"
+        } else {
+            deviceLayerStatus = "删除失败：\(database.lastError)"
         }
     }
 

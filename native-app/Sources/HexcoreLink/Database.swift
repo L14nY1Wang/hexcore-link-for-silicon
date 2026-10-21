@@ -90,6 +90,62 @@ final class VendorDatabase {
             .compactMap { ($0["deviceModel"] as? Int64).map(Int.init) }
     }
 
+    /// Copy a keymap into a new row. Returns the new id.
+    func insertKeymap(name: String, deviceModel: Int, top: [Int], fn1: [Int], fn2: [Int], tap: [Int]) -> Int64? {
+        let sql = """
+        INSERT INTO kbd_keymap (name, deviceModel, top, fn1, fn2, tap, isDefault, isChanged, quickNumber, macro)
+        VALUES (?, ?, ?, ?, ?, ?, 0, 1, '[]', '[]')
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            lastError = String(cString: sqlite3_errmsg(db))
+            return nil
+        }
+        defer { sqlite3_finalize(stmt) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        let json = { (values: [Int]) in "[" + values.map(String.init).joined(separator: ",") + "]" }
+        sqlite3_bind_text(stmt, 1, name, -1, transient)
+        sqlite3_bind_int64(stmt, 2, Int64(deviceModel))
+        sqlite3_bind_text(stmt, 3, json(top), -1, transient)
+        sqlite3_bind_text(stmt, 4, json(fn1), -1, transient)
+        sqlite3_bind_text(stmt, 5, json(fn2), -1, transient)
+        sqlite3_bind_text(stmt, 6, json(tap), -1, transient)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            lastError = String(cString: sqlite3_errmsg(db))
+            return nil
+        }
+        return sqlite3_last_insert_rowid(db)
+    }
+
+    func renameKeymap(id: Int, name: String) -> Bool {
+        execute("UPDATE kbd_keymap SET name = ? WHERE id = ?") { stmt in
+            let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            sqlite3_bind_text(stmt, 1, name, -1, transient)
+            sqlite3_bind_int64(stmt, 2, Int64(id))
+        }
+    }
+
+    func deleteKeymap(id: Int) -> Bool {
+        execute("DELETE FROM kbd_keymap WHERE id = ?") { stmt in
+            sqlite3_bind_int64(stmt, 1, Int64(id))
+        }
+    }
+
+    private func execute(_ sql: String, bind: (OpaquePointer?) -> Void) -> Bool {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            lastError = String(cString: sqlite3_errmsg(db))
+            return false
+        }
+        defer { sqlite3_finalize(stmt) }
+        bind(stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            lastError = String(cString: sqlite3_errmsg(db))
+            return false
+        }
+        return true
+    }
+
     // MARK: - SQLite plumbing
 
     @discardableResult

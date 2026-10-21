@@ -4,6 +4,8 @@ struct LayoutView: View {
     @EnvironmentObject private var store: DeviceStore
     @State private var selectedKey: Int?
     @State private var editing: KeyEditTarget?
+    @State private var renameTarget: DeviceStore.LayoutSummary?
+    @State private var renameText = ""
     private let keyUnit: CGFloat = 36
 
     private struct KeyEditTarget: Identifiable {
@@ -24,6 +26,17 @@ struct LayoutView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .alert("重命名配列", isPresented: Binding(
+            get: { renameTarget != nil },
+            set: { if !$0 { renameTarget = nil } }
+        )) {
+            TextField("名称", text: $renameText)
+            Button("取消", role: .cancel) { renameTarget = nil }
+            Button("保存") {
+                store.renameSelectedLayout(to: renameText)
+                renameTarget = nil
+            }
         }
         .sheet(item: $editing) { target in
             KeyPickerView { key in
@@ -160,6 +173,20 @@ struct LayoutView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button("重命名") {
+                                renameTarget = layout
+                                renameText = layout.name
+                            }
+                            Button("复制为副本") {
+                                store.selectLayout(layout.id)
+                                store.duplicateCurrentLayout()
+                            }
+                            Button("删除", role: .destructive) {
+                                store.selectLayout(layout.id)
+                                store.deleteSelectedLayout()
+                            }
+                        }
                         Divider()
                     }
                 }
