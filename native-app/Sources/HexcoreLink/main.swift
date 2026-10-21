@@ -49,5 +49,6 @@ MainActor.assumeIsolated {
     let delegate = AppDelegate()
     app.delegate = delegate
     app.setActivationPolicy(.regular)
+    app.appearance = NSAppearance(named: .aqua)
     app.run()
 }
