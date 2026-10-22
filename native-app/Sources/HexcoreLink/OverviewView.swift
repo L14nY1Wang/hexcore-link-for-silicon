@@ -99,7 +99,7 @@ struct OverviewView: View {
             Circle()
                 .trim(from: 0, to: CGFloat(max(0, min(100, level))) / 100)
                 .stroke(
-                    level > 25 ? Theme.accent : Color(hex: 0xF59E0B),
+                    level > 20 ? Color(hex: 0x22C55E) : Color(hex: 0xF59E0B),
                     style: StrokeStyle(lineWidth: 8, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
