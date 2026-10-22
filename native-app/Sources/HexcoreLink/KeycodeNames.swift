@@ -32,7 +32,7 @@ enum KeycodeNames {
             (45, "-"), (46, "="), (47, "["), (48, "]"), (49, "\\"), (50, "# (ISO)"),
             (51, ";"), (52, "'"), (53, "`"), (54, ","), (55, "."), (56, "/"),
             (57, "Caps Lock"),
-            (70, "Print Screen"), (71, "Scroll Lock"), (72, "Pause"),
+            (70, "PrtSc"), (71, "Scroll Lock"), (72, "Pause"),
             (73, "Insert"), (74, "Home"), (75, "Page Up"), (76, "Delete"),
             (77, "End"), (78, "Page Down"),
             (79, "Right"), (80, "Left"), (81, "Down"), (82, "Up"),
@@ -69,9 +69,34 @@ enum KeycodeNames {
         return map
     }()
 
+    /// Vendor `HC_*` codes carried by `Keycode.hexcore` (from the renderer's
+    /// `HEXCORE` enum). Kept short so they fit on a key cap.
+    static let hexcore: [UInt8: String] = [
+        0: "—",
+        1: "EMOJI",
+        2: "PAD",
+        3: "MACRO",
+        48: "BT1", 49: "BT2", 50: "BT3", 51: "BT4",
+        52: "BT5", 53: "BT6", 54: "BT7", 55: "BT8",
+        64: "2.4G1", 65: "2.4G2", 66: "2.4G3", 67: "2.4G4",
+        68: "2.4G5", 69: "2.4G6", 70: "2.4G7", 71: "2.4G8",
+        80: "HUB↑", 81: "HUB↓", 82: "HUB←", 83: "HUB→",
+        96: "MENU↑", 97: "MENU↓",
+        224: "LIGHT1", 225: "LIGHT2",
+        240: "LIGHT", 241: "EFFECT",
+        243: "BRI+", 244: "BRI-",
+        246: "BATT", 247: "QNUM",
+    ]
+
     /// HID Consumer Page usages exposed by the vendor app.
     static let media: [(code: UInt16, name: String)] = [
         (0xE2, "静音"), (0xE9, "音量增"), (0xEA, "音量减"),
         (0xB6, "上一曲"), (0xB5, "下一曲"), (0xCD, "播放暂停"),
     ]
+}
+
+extension KeycodeNames {
+    static let mediaByCode: [UInt16: String] = Dictionary(
+        uniqueKeysWithValues: media.map { ($0.code, $0.name) }
+    )
 }

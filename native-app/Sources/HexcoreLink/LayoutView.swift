@@ -6,7 +6,8 @@ struct LayoutView: View {
     @State private var editing: KeyEditTarget?
     @State private var renameTarget: DeviceStore.LayoutSummary?
     @State private var renameText = ""
-    private let keyUnit: CGFloat = 36
+    private let keySpacing: CGFloat = 5
+    @State private var keyboardWidth: CGFloat = 0
 
     private struct KeyEditTarget: Identifiable {
         let id: Int
@@ -129,13 +130,22 @@ struct LayoutView: View {
     private var keyboardCard: some View {
         let rows = LayoutMap.rows(deviceModel: store.keyboardModel)
         let keys = store.currentKeys
-        return VStack(alignment: .leading, spacing: 8) {
+        let units = rows.map { row in row.reduce(CGFloat(0)) { $0 + $1.width } }.max() ?? 15
+        let available = max(keyboardWidth, units * 36)
+        let unit = min(56, (available - keySpacing * (units - 1)) / units)
+        let capHeight = min(50, max(38, unit))
+
+        return VStack(alignment: .center, spacing: keySpacing) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 5) {
+                HStack(spacing: keySpacing) {
                     ForEach(row) { slot in
+                        let key = slot.index < keys.count ? keys[slot.index] : .transparent
                         KeyCap(
-                            label: slot.index < keys.count ? keys[slot.index].label : "",
-                            width: keyUnit * slot.width - 5,
+                            label: key.label,
+                            icon: key.glyph?.icon,
+                            badge: key.glyph?.text ?? "",
+                            width: unit * slot.width - keySpacing,
+                            height: capHeight,
                             selected: selectedKey == slot.index
                         ) {
                             selectedKey = slot.index
@@ -146,7 +156,13 @@ struct LayoutView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .card(padding: 20)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: KeyboardWidthKey.self, value: geo.size.width)
+            }
+        )
+        .onPreferenceChange(KeyboardWidthKey.self) { keyboardWidth = $0 }
+        .card(padding: 18)
     }
 
     private func keyDetail(_ index: Int) -> some View {
@@ -256,19 +272,19 @@ struct LayoutView: View {
 /// A single key cap: flat white tile, red when selected, subtle lift on hover.
 struct KeyCap: View {
     let label: String
+    var icon: String? = nil
+    var badge: String = ""
     let width: CGFloat
+    var height: CGFloat = 40
     let selected: Bool
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
+            capContent
                 .foregroundStyle(selected ? Color.white : Theme.textPrimary.opacity(0.88))
-                .frame(width: width, height: 34)
+                .frame(width: width, height: height)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(selected ? Theme.accent : (hovering ? Theme.accentSoft : Theme.surface))
@@ -284,5 +300,32 @@ struct KeyCap: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(label.isEmpty ? "空" : label)
+    }
+
+    @ViewBuilder
+    private var capContent: some View {
+        if let icon {
+            VStack(spacing: 0) {
+                AppIcon(icon, size: min(16, height * 0.34))
+                if !badge.isEmpty {
+                    Text(badge)
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .lineLimit(1)
+                }
+            }
+        } else {
+            Text(label)
+                .font(.system(size: min(13, max(11, height * 0.30)), weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+    }
+}
+
+
+private struct KeyboardWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

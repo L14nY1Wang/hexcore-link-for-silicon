@@ -12,13 +12,13 @@ extension Keycode {
             return Self.modifierLabel(usage)
         case .layer(let n): return "FN\(n)"
         case .macro(let id): return "M\(id)"
-        case .consumer: return "MEDIA"
+        case .consumer(let code): return KeycodeNames.mediaByCode[code] ?? "MEDIA"
         case .system: return "SYS"
         case .mouse: return "MOUSE"
         case .gamepad: return "PAD"
         case .symbol: return "SYM"
         case .emoji: return "EMOJI"
-        case .hexcore: return "HC"
+        case .hexcore(let code): return KeycodeNames.hexcore[code] ?? "HC\(code)"
         case .unknown: return "?"
         }
     }
@@ -69,6 +69,34 @@ extension Keycode {
         case 81: return "↓"
         case 82: return "↑"
         default: return KeycodeNames.keyboard[usage] ?? String(format: "%02X", usage)
+        }
+    }
+}
+
+
+extension Keycode {
+    /// Icon + short badge for function keys that have no meaningful text.
+    var glyph: (icon: String, text: String)? {
+        guard case .hexcore(let code) = self else {
+            if case .mouse = self { return ("mouse", "") }
+            return nil
+        }
+        switch code {
+        case 48...55: return ("bluetooth", "\(Int(code) - 47)")
+        case 64...71: return ("wifi", "\(Int(code) - 63)")
+        case 80: return ("chevron-up", "")
+        case 81: return ("chevron-down", "")
+        case 82: return ("chevron-left", "")
+        case 83: return ("chevron-right", "")
+        case 224, 225, 240: return ("lightbulb", "")
+        case 241: return ("sparkles", "")
+        case 243: return ("sun", "+")
+        case 244: return ("sun", "\u{2212}")
+        case 246: return ("battery-full", "")
+        case 247: return ("hash", "")
+        case 2: return ("gamepad-2", "")
+        case 3: return ("play", "")
+        default: return nil
         }
     }
 }
