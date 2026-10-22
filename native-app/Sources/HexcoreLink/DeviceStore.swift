@@ -336,14 +336,29 @@ final class DeviceStore: ObservableObject {
             keys.append(UInt16(buffer[i]) | (UInt16(buffer[i + 1]) << 8))
         }
         deviceLayerKeys = keys
+
+        // Load the device's layer straight into the editor: reading should
+        // show what the keyboard actually has, not just a diff count.
         let current = currentKeys.map { UInt16($0.raw) }
-        if current.count == keys.count {
-            let differences = zip(current, keys).filter { $0 != $1 }.count
-            deviceLayerStatus = differences == 0
-                ? "读取 \(keys.count) 键 · 与当前配列一致"
-                : "读取 \(keys.count) 键 · \(differences) 处差异"
-        } else {
-            deviceLayerStatus = "读取 \(keys.count) 键"
+        let differences = current.count == keys.count
+            ? zip(current, keys).filter { $0 != $1 }.count
+            : -1
+        let codes = keys.map { Keycode(raw: Int($0)) }
+        if var keymap = currentKeymap {
+            switch layerIndex {
+            case 1: keymap.fn1 = codes
+            case 2: keymap.fn2 = codes
+            case 3: keymap.tap = codes
+            default: keymap.top = codes
+            }
+            currentKeymap = keymap
+            if let id = selectedLayoutID { keymapsByID[id] = keymap }
+            hasUnsavedEdits = true
+        }
+        switch differences {
+        case 0: deviceLayerStatus = "已读取 \(keys.count) 键 · 与本地配列一致"
+        case -1: deviceLayerStatus = "已读取 \(keys.count) 键"
+        default: deviceLayerStatus = "已读取 \(keys.count) 键 · \(differences) 处与本地配列不同"
         }
     }
 
