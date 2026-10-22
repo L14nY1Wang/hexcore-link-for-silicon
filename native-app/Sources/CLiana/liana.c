@@ -159,12 +159,14 @@ static int64_t NowMs(void) {
 static size_t PutHeader(LianaHandle *h, uint8_t *frame, uint8_t cmd, uint8_t arg,
                         uint8_t dist, uint8_t seq, uint8_t last_index,
                         uint8_t remainder, size_t len) {
-    int multi = !(last_index == 0 && remainder == 0);
+    // The high bit of the sequence byte means "more frames follow"; the last
+    // frame carries the bare index so the MCU can commit the payload.
+    const int more = seq < last_index;
     unsigned field = (unsigned)(len + 2);
     frame[0] = 0x7b;
     frame[1] = h->ver;
     frame[2] = (uint8_t)((dist << 4) | 0x01);
-    frame[3] = (uint8_t)(multi ? (0x80 | (seq & 0x7f)) : (seq & 0x0f));
+    frame[3] = (uint8_t)(more ? (0x80 | (seq & 0x7f)) : (seq & 0x7f));
     frame[4] = (uint8_t)(field & 0xff);
     frame[5] = (uint8_t)((field >> 8) & 0xff);
     frame[6] = 0x00;
@@ -195,7 +197,19 @@ static int SendCommand(LianaHandle *h, uint8_t cmd, uint8_t arg, uint8_t dist,
         memset(wire, 0, sizeof wire);
         if (n > sizeof wire - 1) n = sizeof wire - 1;
         memcpy(wire + 1, frame, n);
-        if (hid_write(h->dev, wire, sizeof wire) < 0) return -1;
+        int wr = hid_write(h->dev, wire, sizeof wire);
+        for (int attempt = 0; wr < 0 && attempt < 3; ++attempt) {
+            usleep(10000);
+            wr = hid_write(h->dev, wire, sizeof wire);
+        }
+        if (wr < 0) {
+            fprintf(stderr, "liana: write failed cmd=%02x frame=%zu/%zu len=%zu\n",
+                    cmd, i + 1, count, len);
+            return -1;
+        }
+        // Multi-frame payloads need a small gap: the MCU only drains one
+        // report per poll and drops writes when the pipe backs up.
+        if (i + 1 < count) usleep(5000);
     }
     return 0;
 }

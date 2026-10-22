@@ -75,3 +75,23 @@ if let database = VendorDatabase(path: NSHomeDirectory() + "/Library/Application
     let parsed = reloaded.flatMap(Keymap.parse(row:))
     print("updateKeymap ok=\(ok) identical=\(parsed?.top == keymap.top && parsed?.fn1 == keymap.fn1 && parsed?.fn2 == keymap.fn2 && parsed?.tap == keymap.tap)")
 }
+
+
+if let table = ProcessInfo.processInfo.environment["DBPROBE_TABLE"] {
+    print("--- \(table) schema ---")
+    for col in db.query("PRAGMA table_info(\(table))") {
+        print("  \(col["name"] ?? "?") \(col["type"] ?? "?")")
+    }
+    print("--- rows ---")
+    for row in db.query("SELECT * FROM \(table) LIMIT 30") {
+        let text = row.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " | ")
+        print(text.prefix(600))
+    }
+}
+
+
+if let sql = ProcessInfo.processInfo.environment["DBPROBE_SQL"] {
+    for row in db.query(sql) {
+        print(row.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " | "))
+    }
+}

@@ -51,6 +51,10 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var deviceLayerStatus: String = ""
     @Published private(set) var hasUnsavedEdits = false
     @Published private(set) var brightness: Int = 50
+    @Published private(set) var lightEffects: [LightEffect] = []
+    @Published var selectedLightEffectID: Int?
+    @Published private(set) var lightStatus: String = ""
+    @Published var customLightColor: Color = Color(hex: 0xE5484D)
     @Published var page: Page = .overview
 
     enum Page: String, CaseIterable, Identifiable {
@@ -99,6 +103,50 @@ final class DeviceStore: ObservableObject {
         guard let keymap = keymapsByID[id] else { return }
         selectedLayoutID = id
         currentKeymap = keymap
+    }
+
+    struct LightEffect: Identifiable, Hashable {
+        let id: Int
+        let rawName: String
+        let type: Int
+        let staticColors: [String]
+        let dynamicColors: [String]
+
+        var displayName: String {
+            switch rawName {
+            case "intl.led.red": return "红色"
+            case "intl.led.yellow": return "黄色"
+            case "intl.led.green": return "绿色"
+            case "intl.led.cyan": return "青色"
+            case "intl.led.blue": return "蓝色"
+            case "intl.led.purple": return "紫色"
+            case "intl.led.orange": return "橙色"
+            case "intl.led.static.single": return "静态单色"
+            case "intl.led.static.multi": return "静态多色"
+            case "intl.dynamic.breath": return "呼吸灯"
+            case "intl.dynamic.breath.grad": return "渐变灯"
+            case "intl.dynamic.poptang": return "泡泡堂"
+            case "intl.dynamic.breath.rainbow": return "水平彩虹"
+            case "intl.dynamic.breath.single": return "单键呼吸灯"
+            case "intl.dynamic.trigger.breath": return "渐变(按键触发)"
+            case "intl.dynamic.trigger.rainbow": return "跑马灯(按键触发)"
+            default:
+                return rawName.split(separator: ".").last.map(String.init) ?? rawName
+            }
+        }
+
+        var isDynamic: Bool { type > 2 }
+
+        /// Distinct colors for the swatch strip.
+        var swatchColors: [Color] {
+            let raw = isDynamic ? dynamicColors : staticColors
+            var seen = Set<String>()
+            var result: [Color] = []
+            for entry in raw where seen.insert(entry.uppercased()).inserted {
+                result.append(Color(hexString: entry))
+            }
+            return result
+        }
     }
 
     struct LayoutSummary: Identifiable, Hashable {
@@ -185,10 +233,9 @@ final class DeviceStore: ObservableObject {
             )
         }
 
-        // Single keyboard: connect immediately so the window shows live data.
-        if devices.count == 1, connected == nil, let only = devices.first {
-            connect(only)
-        }
+        // Connecting talks to the keyboard and can stall for seconds; wait for
+        // the user to pick a device instead of doing it during launch.
+
     }
 
     private func openDatabase() {
@@ -203,6 +250,37 @@ final class DeviceStore: ObservableObject {
         } else if let first = layouts.first {
             selectLayout(first.id)
         }
+        loadLightEffects()
+    }
+
+    func loadLightEffects() {
+        guard let database else { return }
+        let model = keyboardModel
+        guard let group = database.lightGroup(deviceModel: model) else {
+            lightEffects = []
+            return
+        }
+        var parsed: [Int: LightEffect] = [:]
+        for row in database.lightEffects(groupID: group.id) {
+            guard let id = (row["id"] as? Int64).map(Int.init),
+                  let name = row["name"] as? String,
+                  let type = (row["type"] as? Int64).map(Int.init) else { continue }
+            let statics = Self.colorList(row["staticEffect"])
+            let dynamics = Self.colorList(row["dynamicEffect"])
+            parsed[id] = LightEffect(id: id, rawName: name, type: type,
+                                      staticColors: statics, dynamicColors: dynamics)
+        }
+        let ordered = group.order.compactMap { parsed[$0] }
+        lightEffects = ordered.isEmpty ? parsed.values.sorted { $0.id < $1.id } : ordered
+        if selectedLightEffectID == nil { selectedLightEffectID = lightEffects.first?.id }
+    }
+
+    private static func colorList(_ value: Any?) -> [String] {
+        if let array = value as? [String] { return array }
+        guard let text = value as? String,
+              let data = text.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [String] else { return [] }
+        return array
     }
 
     private func reloadLibrary() {
@@ -385,6 +463,96 @@ final class DeviceStore: ObservableObject {
             liana_write(handle, "backlightBrightness", $0.baseAddress, 1, 3)
         }
         brightness = level
+    }
+
+    func previewSelectedLightEffect() {
+        guard let effect = lightEffects.first(where: { $0.id == selectedLightEffectID }) else { return }
+        let hex = (effect.isDynamic ? effect.dynamicColors.first : effect.staticColors.first) ?? "#FF0000"
+        previewColor(Color(hexString: hex))
+        lightStatus = "已预览「\(effect.displayName)」"
+    }
+
+    func previewLightColor() {
+        previewColor(customLightColor)
+        lightStatus = "已预览自定义颜色"
+    }
+
+    func applyLightEffect() {
+        guard let handle, let effect = lightEffects.first(where: { $0.id == selectedLightEffectID }) else { return }
+        let payload = buildLightPayload(effect)
+        let rc = payload.withUnsafeBufferPointer {
+            liana_write(handle, "downloadLight", $0.baseAddress, payload.count, 3)
+        }
+        lightStatus = rc == 0
+            ? "已应用「\(effect.displayName)」到设备"
+            : "应用失败"
+    }
+
+    func applyCustomLightColor() {
+        guard let handle else { return }
+        let ns = NSColor(customLightColor).usingColorSpace(.sRGB) ?? .red
+        let payload: [UInt8] = [
+            1, 255,
+            UInt8(max(0, min(255, ns.redComponent * 255))),
+            UInt8(max(0, min(255, ns.greenComponent * 255))),
+            UInt8(max(0, min(255, ns.blueComponent * 255))),
+        ]
+        // previewLight changes the LEDs immediately; downloadLight persists
+        // the single-color effect on the device.
+        _ = payload.withUnsafeBufferPointer {
+            liana_write(handle, "previewLight", $0.baseAddress, payload.count, 0)
+        }
+        var entry: [UInt8] = [1]
+        entry.append(UInt8(payload.count - 2)); entry.append(0)
+        let name = Array("自定义".data(using: .utf16BigEndian) ?? Data())
+        entry.append(UInt8(name.count & 0xff)); entry.append(UInt8((name.count >> 8) & 0xff))
+        entry.append(contentsOf: payload[2...])
+        entry.append(contentsOf: name)
+        var download: [UInt8] = [1, 254, 0, 0]
+        download.append(contentsOf: entry)
+        let rc = download.withUnsafeBufferPointer {
+            liana_write(handle, "downloadLight", $0.baseAddress, download.count, 3)
+        }
+        lightStatus = rc == 0 ? "已保存自定义颜色" : "保存失败"
+    }
+
+    private func buildLightPayload(_ effect: LightEffect) -> [UInt8] {
+        var rgb: [UInt8] = []
+        var ledType = effect.type
+        if effect.type > 2 {
+            rgb = effect.dynamicColors.flatMap(Self.rgbBytes)
+        } else {
+            let colors = effect.staticColors
+            let multi = Set(colors.map { $0.uppercased() }).count > 1
+            if multi {
+                ledType = 2
+                var perKey = colors
+                let count = max(currentKeys.count, 1)
+                if perKey.count < count {
+                    perKey += Array(repeating: perKey.last ?? "#000000", count: count - perKey.count)
+                }
+                rgb = perKey.prefix(count).flatMap(Self.rgbBytes)
+            } else {
+                ledType = 1
+                rgb = Self.rgbBytes(colors.first ?? "#FFFFFF")
+            }
+        }
+        let name = Array(effect.displayName.data(using: .utf16BigEndian) ?? Data())
+        var payload: [UInt8] = [1, 254, 0, 0]
+        payload.append(UInt8(ledType))
+        payload.append(UInt8(rgb.count & 0xff)); payload.append(UInt8((rgb.count >> 8) & 0xff))
+        payload.append(UInt8(name.count & 0xff)); payload.append(UInt8((name.count >> 8) & 0xff))
+        payload.append(contentsOf: rgb)
+        payload.append(contentsOf: name)
+        return payload
+    }
+
+    private static func rgbBytes(_ hex: String) -> [UInt8] {
+        let color = Color(hexString: hex)
+        let ns = NSColor(color).usingColorSpace(.sRGB) ?? .white
+        return [UInt8(max(0, min(255, ns.redComponent * 255))),
+                UInt8(max(0, min(255, ns.greenComponent * 255))),
+                UInt8(max(0, min(255, ns.blueComponent * 255)))]
     }
 
     func applyCurrentLayer() {

@@ -196,3 +196,25 @@ struct DotGridBackground: View {
         .ignoresSafeArea()
     }
 }
+
+
+extension Color {
+    /// Parses `#RRGGBB` / `#RRGGBBAA` strings used by the vendor LED tables.
+    init(hexString: String) {
+        var text = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.hasPrefix("#") { text.removeFirst() }
+        guard let value = UInt32(text, radix: 16) else {
+            self = .gray
+            return
+        }
+        if text.count >= 8 {
+            self.init(.sRGB,
+                      red: Double((value >> 24) & 0xFF) / 255,
+                      green: Double((value >> 16) & 0xFF) / 255,
+                      blue: Double((value >> 8) & 0xFF) / 255,
+                      opacity: Double(value & 0xFF) / 255)
+        } else {
+            self.init(hex: value)
+        }
+    }
+}

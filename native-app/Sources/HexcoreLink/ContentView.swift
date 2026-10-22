@@ -53,6 +53,7 @@ struct ContentView: View {
         switch store.page {
         case .overview: OverviewView()
         case .layout: LayoutView()
+        case .lighting: LightingView()
         default: PlaceholderView(page: store.page)
         }
     }

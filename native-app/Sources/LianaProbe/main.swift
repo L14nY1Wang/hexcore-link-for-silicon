@@ -42,6 +42,31 @@ guard let handle = liana_open(cString(target.path, capacity: Int(LIANA_PATH_MAX)
 }
 defer { liana_close(handle) }
 
+if ProcessInfo.processInfo.environment["LIGHT_ONLY"] != nil {
+    let nameBytes = Array("紫色".data(using: .utf16BigEndian) ?? Data())
+    var payload: [UInt8] = [1, 254, 0, 0, 1, 3, 0,
+                            UInt8(nameBytes.count & 0xff), UInt8((nameBytes.count >> 8) & 0xff)]
+    payload += [255, 0, 255]
+    payload += nameBytes
+    let short = Array(payload.prefix(6))
+    for (label, body) in [("short6", short), ("full\(payload.count)", payload)] {
+        let rc = body.withUnsafeBufferPointer {
+            liana_write(handle, "downloadLight", $0.baseAddress, body.count, 3)
+        }
+        var frame = [UInt8](repeating: 0, count: 4096)
+        let n = frame.withUnsafeMutableBufferPointer { liana_poll(handle, $0.baseAddress, $0.count, 300) }
+        let hex = frame.prefix(Int(max(0, n))).map { String(format: "%02x", $0) }.joined(separator: " ")
+        print("downloadLight \(label) rc=\(rc) echo=\(n) [\(hex.prefix(120))]")
+        usleep(300_000)
+    }
+    var preview: [UInt8] = [1, 255, 255, 0, 255]
+    let rc = preview.withUnsafeBufferPointer {
+        liana_write(handle, "previewLight", $0.baseAddress, preview.count, 0)
+    }
+    print("previewLight rc=\(rc)")
+    exit(0)
+}
+
 func query(_ command: String) -> [UInt8]? {
     var reply = [UInt8](repeating: 0, count: 64)
     let n = reply.withUnsafeMutableBufferPointer {

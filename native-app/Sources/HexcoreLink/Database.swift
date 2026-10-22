@@ -60,6 +60,9 @@ final class VendorDatabase {
 
     deinit { sqlite3_close(db) }
 
+    /// Escape hatch for diagnostics and reads of tables without a typed API.
+    func query(_ sql: String) -> [[String: Any]] { rows(sql) }
+
     func tableNames() -> [String] {
         rows("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
             .compactMap { $0["name"] as? String }
@@ -84,6 +87,24 @@ final class VendorDatabase {
     }
 
     static var lastOpenError = ""
+
+    // MARK: - Lighting
+
+    func lightGroup(deviceModel: Int) -> (id: Int, order: [Int])? {
+        guard let row = rows("SELECT id, lightOrder FROM kbd_light_effect_group WHERE deviceModel = \(deviceModel) ORDER BY id LIMIT 1").first,
+              let id = (row["id"] as? Int64).map(Int.init) else { return nil }
+        var order: [Int] = []
+        if let text = row["lightOrder"] as? String,
+           let data = text.data(using: .utf8),
+           let array = try? JSONSerialization.jsonObject(with: data) as? [Int] {
+            order = array
+        }
+        return (id, order)
+    }
+
+    func lightEffects(groupID: Int) -> [[String: Any]] {
+        rows("SELECT * FROM kbd_light_effect WHERE groupId = \(groupID) ORDER BY id")
+    }
 
     func deviceModels() -> [Int] {
         rows("SELECT DISTINCT deviceModel FROM kbd_keymap ORDER BY deviceModel")
