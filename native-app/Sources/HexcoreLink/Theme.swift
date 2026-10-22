@@ -1,18 +1,17 @@
 import SwiftUI
 
 enum Theme {
-    static let accent = Color(hex: 0xE5453C)
-    static let accentSoft = Color(hex: 0xE5453C).opacity(0.12)
-    static let backgroundTop = Color(hex: 0xFAFAFC)
-    static let backgroundBottom = Color(hex: 0xEDEDF3)
-    static let cardFill = Color.white.opacity(0.88)
-    static let cardStroke = Color.black.opacity(0.06)
-    static let textPrimary = Color(hex: 0x1D1D22)
-    static let textSecondary = Color.black.opacity(0.48)
-    static let textTertiary = Color.black.opacity(0.32)
-    static let keyFillTop = Color.white
-    static let keyFillBottom = Color(hex: 0xF1F1F6)
-    static let keyStroke = Color.black.opacity(0.08)
+    static let canvas = Color(hex: 0xF5F5F7)
+    static let sidebar = Color(hex: 0xFAFAFB)
+    static let surface = Color.white
+    static let border = Color(hex: 0xE4E4E9)
+    static let textPrimary = Color(hex: 0x18181B)
+    static let textSecondary = Color(hex: 0x71717A)
+    static let textTertiary = Color(hex: 0xA1A1AA)
+    static let accent = Color(hex: 0xE5484D)
+    static let accentSoft = Color(hex: 0xE5484D).opacity(0.09)
+    static let keyBorder = Color(hex: 0xDFDFE5)
+    static let hoverFill = Color.black.opacity(0.045)
 }
 
 extension Color {
@@ -27,34 +26,21 @@ extension Color {
     }
 }
 
-struct AppBackground: View {
-    var body: some View {
-        ZStack {
-            LinearGradient(colors: [Theme.backgroundTop, Theme.backgroundBottom],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-            RadialGradient(colors: [Theme.accent.opacity(0.07), .clear],
-                           center: .topLeading, startRadius: 0, endRadius: 620)
-            RadialGradient(colors: [Color(hex: 0x3A6BE8).opacity(0.05), .clear],
-                           center: .bottomTrailing, startRadius: 0, endRadius: 700)
-        }
-        .ignoresSafeArea()
-    }
-}
-
 struct Card: ViewModifier {
     var padding: CGFloat = 16
+    var radius: CGFloat = 14
     func body(content: Content) -> some View {
         content
             .padding(padding)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Theme.cardFill)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Theme.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Theme.cardStroke, lineWidth: 1)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(Theme.border, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.06), radius: 12, y: 4)
+            .shadow(color: Color.black.opacity(0.03), radius: 2, y: 1)
     }
 }
 
@@ -66,16 +52,14 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 13)
+            .frame(height: 28)
             .background(
-                LinearGradient(colors: [Theme.accent, Theme.accent.opacity(0.85)],
-                               startPoint: .top, endPoint: .bottom),
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Theme.accent)
             )
             .foregroundStyle(.white)
-            .opacity(configuration.isPressed ? 0.78 : 1)
-            .shadow(color: Theme.accent.opacity(0.28), radius: 6, y: 2)
+            .opacity(configuration.isPressed ? 0.82 : 1)
     }
 }
 
@@ -83,17 +67,74 @@ struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 13)
+            .frame(height: 28)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.white.opacity(configuration.isPressed ? 0.7 : 1))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(configuration.isPressed ? Color.black.opacity(0.055) : Theme.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(Color.black.opacity(0.10), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Theme.border, lineWidth: 1)
             )
-            .foregroundStyle(Theme.textPrimary.opacity(0.85))
-            .shadow(color: Color.black.opacity(configuration.isPressed ? 0 : 0.04), radius: 3, y: 1)
+            .foregroundStyle(Theme.textPrimary)
+    }
+}
+
+/// macOS-style segmented control, flattened to the web-driver look.
+struct SegmentedPills: View {
+    let items: [(String, Int)]
+    @Binding var selection: Int
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                let active = selection == item.1
+                Button {
+                    selection = item.1
+                } label: {
+                    Text(item.0)
+                        .font(.system(size: 11, weight: active ? .semibold : .medium))
+                        .foregroundStyle(active ? Theme.textPrimary : Theme.textSecondary)
+                        .padding(.horizontal, 12)
+                        .frame(height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(active ? Theme.surface : Color.clear)
+                                .shadow(color: .black.opacity(active ? 0.07 : 0), radius: 1, y: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.black.opacity(0.05))
+        )
+    }
+}
+
+struct HoverRow<Content: View>: View {
+    var selected: Bool = false
+    var radius: CGFloat = 7
+    let action: () -> Void
+    @ViewBuilder var content: () -> Content
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            content()
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .fill(selected ? Theme.accentSoft : (hovering ? Theme.hoverFill : Color.clear))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }

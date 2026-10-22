@@ -6,177 +6,194 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 280)
+            Sidebar()
+                .navigationSplitViewColumnWidth(200)
         } detail: {
             ZStack {
-                AppBackground()
+                Theme.canvas.ignoresSafeArea()
                 VStack(spacing: 0) {
                     topBar
-                    detailPage
+                    page
                 }
             }
         }
-        .alert("错误", isPresented: Binding(
+        .alert(store.error, isPresented: Binding(
             get: { !store.error.isEmpty },
             set: { if !$0 { store.error = "" } }
         )) {
             Button("好") { store.error = "" }
-        } message: {
-            Text(store.error)
         }
     }
 
-    // MARK: - Sidebar
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+            } label: {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.black.opacity(0.045))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("显示/隐藏侧边栏")
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 2)
+    }
 
-    private var sidebar: some View {
-        ZStack {
-            AppBackground().opacity(0.9)
+    @ViewBuilder
+    private var page: some View {
+        switch store.page {
+        case .overview: OverviewView()
+        case .layout: LayoutView()
+        default: PlaceholderView(page: store.page)
+        }
+    }
+}
+
+private struct Sidebar: View {
+    @EnvironmentObject private var store: DeviceStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            brand
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    section("设备") {
-                        ForEach(store.devices) { device in
-                            deviceRow(device)
-                        }
-                        Button {
-                            store.refresh()
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "arrow.clockwise").frame(width: 18)
-                                Text("重新扫描")
-                                Spacer()
-                            }
-                            .font(.system(size: 13))
-                            .foregroundStyle(Theme.textSecondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionLabel("设备")
+                    ForEach(store.devices) { device in
+                        deviceRow(device)
                     }
-
-                    section("功能") {
-                        ForEach(DeviceStore.Page.allCases) { page in
-                            pageRow(page)
+                    Button {
+                        store.refresh()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("重新扫描")
+                                .font(.system(size: 12))
+                            Spacer()
                         }
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    sectionLabel("功能")
+                        .padding(.top, 18)
+                    ForEach(DeviceStore.Page.allCases) { page in
+                        navRow(page)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 14)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 14)
             }
+        }
+        .background(Theme.sidebar)
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Theme.border)
+                .frame(width: 1)
         }
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Theme.textSecondary)
-                .textCase(.uppercase)
-                .padding(.leading, 10)
-                .padding(.bottom, 2)
-            content()
+    private var brand: some View {
+        HStack(spacing: 9) {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Theme.accent)
+                .frame(width: 26, height: 26)
+                .overlay(
+                    Image(systemName: "keyboard.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                )
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Hexcore Link")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("2.5.9")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 30)
+        .padding(.bottom, 16)
     }
 
-    private func pageRow(_ page: DeviceStore.Page) -> some View {
-        let selected = store.page == page
-        return Button {
-            store.page = page
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: page.icon)
-                    .font(.system(size: 13, weight: .medium))
-                    .frame(width: 18)
-                Text(page.title)
-                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
-                Spacer()
-            }
-            .foregroundStyle(selected ? Theme.accent : Theme.textSecondary)
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 10, weight: .semibold))
+            .kerning(0.6)
+            .foregroundStyle(Theme.textTertiary)
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(selected ? Theme.accentSoft : .clear)
-            )
-            .overlay(alignment: .leading) {
-                if selected {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Theme.accent)
-                        .frame(width: 3, height: 16)
-                        .padding(.leading, 3)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+            .padding(.bottom, 6)
     }
 
     private func deviceRow(_ device: DeviceInfo) -> some View {
         let connected = store.connected?.id == device.id
         return Button {
-            store.connect(device)
+            if connected { store.disconnect() } else { store.connect(device) }
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: connected ? "keyboard.fill" : "keyboard")
-                    .font(.system(size: 13))
-                    .frame(width: 18)
-                    .foregroundStyle(connected ? Theme.accent : Theme.textSecondary)
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 9) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(connected ? Theme.accentSoft : Color.black.opacity(0.045))
+                    .frame(width: 24, height: 24)
+                    .overlay(
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(connected ? Theme.accent : Theme.textSecondary)
+                    )
+                VStack(alignment: .leading, spacing: 0) {
                     Text(device.product)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Theme.textPrimary.opacity(connected ? 1 : 0.82))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
                     Text(device.isUSB ? "USB" : "蓝牙")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Theme.textSecondary)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(Theme.textTertiary)
                 }
                 Spacer()
-                if connected {
-                    Circle().fill(Color.green).frame(width: 6, height: 6)
-                }
+                Circle()
+                    .fill(connected ? Color(hex: 0x22C55E) : Color.black.opacity(0.14))
+                    .frame(width: 6, height: 6)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 8)
+            .frame(height: 40)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(connected ? Color.white.opacity(0.9) : .clear)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(connected ? Theme.surface : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(connected ? Theme.border : Color.clear, lineWidth: 1)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: - Detail
-
-    private var topBar: some View {
-        HStack {
-            Button {
-                columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
-            } label: {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary)
-                    .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.85)))
+    private func navRow(_ page: DeviceStore.Page) -> some View {
+        HoverRow(selected: store.page == page, radius: 7) {
+            store.page = page
+        } content: {
+            HStack(spacing: 9) {
+                Image(systemName: page.icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 16)
+                Text(page.title)
+                    .font(.system(size: 12.5, weight: store.page == page ? .semibold : .regular))
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .help("显示/隐藏边栏")
-            Spacer()
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
-        .padding(.bottom, 2)
-    }
-
-    @ViewBuilder
-    private var detailPage: some View {
-        switch store.page {
-        case .overview:
-            OverviewView()
-        case .layout:
-            LayoutView()
-        case .lighting, .macros, .settings:
-            PlaceholderView(page: store.page)
+            .foregroundStyle(store.page == page ? Theme.accent : Theme.textSecondary)
         }
     }
 }

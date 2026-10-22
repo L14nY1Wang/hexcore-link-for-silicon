@@ -14,16 +14,18 @@ struct LayoutView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                controlCard
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                toolbar
                 keyboardCard
                 if let index = selectedKey {
                     keyDetail(index)
                 }
                 libraryCard
             }
-            .padding(.horizontal, 22)
-            .padding(.bottom, 22)
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+            .padding(.bottom, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .alert("重命名配列", isPresented: Binding(
@@ -45,58 +47,65 @@ struct LayoutView: View {
         }
     }
 
-    // MARK: - Controls
+    // MARK: - Header
 
-    private var controlCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text("配列")
-                            .font(.system(size: 22, weight: .bold))
-                        if store.hasUnsavedEdits {
-                            Text("未保存")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(Theme.accent)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(Theme.accentSoft, in: Capsule())
-                        }
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text("配列")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    if store.hasUnsavedEdits {
+                        Text("未保存")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Theme.accentSoft, in: Capsule())
                     }
-                    Text(store.currentKeymap.map { "\(DeviceStore.shortName($0.name)) · \($0.top.count) 键" } ?? "未选择配列")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.textSecondary)
                 }
-                Spacer()
-                Picker("层", selection: $store.layerIndex) {
-                    Text("Top").tag(0)
-                    Text("Fn1").tag(1)
-                    Text("Fn2").tag(2)
-                    Text("Tap").tag(3)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 250)
+                Text(store.currentKeymap.map { "\(DeviceStore.shortName($0.name)) · \($0.top.count) 键" } ?? "未选择配列")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.textSecondary)
             }
-
-            HStack(spacing: 10) {
-                Button("从设备读取") { store.readDeviceLayer() }
-                    .buttonStyle(SecondaryButtonStyle())
-                Button("应用到设备") { store.applyCurrentLayer() }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(store.connected == nil || store.currentKeys.isEmpty)
-                Button("保存到配列库") { store.saveCurrentLayout() }
-                    .buttonStyle(SecondaryButtonStyle())
-                    .disabled(store.currentKeymap == nil)
-                if !store.deviceLayerStatus.isEmpty {
-                    Text(store.deviceLayerStatus)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.textSecondary)
-                        .lineLimit(1)
-                }
-                Spacer()
-            }
+            Spacer()
+            SegmentedPills(
+                items: [("Top", 0), ("Fn1", 1), ("Fn2", 2), ("Tap", 3)],
+                selection: $store.layerIndex
+            )
         }
-        .card(padding: 18)
+    }
+
+    private var toolbar: some View {
+        HStack(spacing: 8) {
+            Button("从设备读取") { store.readDeviceLayer() }
+                .buttonStyle(SecondaryButtonStyle())
+            Button("应用到设备") { store.applyCurrentLayer() }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(store.connected == nil || store.currentKeys.isEmpty)
+            Button("保存到配列库") { store.saveCurrentLayout() }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(store.currentKeymap == nil)
+            if !store.deviceLayerStatus.isEmpty {
+                Text(store.deviceLayerStatus)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+                    .padding(.leading, 2)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Theme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Theme.border, lineWidth: 1)
+        )
     }
 
     // MARK: - Keyboard
@@ -106,72 +115,49 @@ struct LayoutView: View {
         let keys = store.currentKeys
         return VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     ForEach(row) { slot in
-                        keyCap(slot: slot, keys: keys)
+                        KeyCap(
+                            label: slot.index < keys.count ? keys[slot.index].label : "",
+                            width: keyUnit * slot.width - 5,
+                            selected: selectedKey == slot.index
+                        ) {
+                            selectedKey = slot.index
+                            editing = KeyEditTarget(id: slot.index)
+                        }
                     }
                 }
             }
         }
-        .card(padding: 16)
-    }
-
-    private func keyCap(slot: KeySlot, keys: [Keycode]) -> some View {
-        let label = slot.index < keys.count ? keys[slot.index].label : ""
-        let selected = selectedKey == slot.index
-        return Button {
-            selectedKey = slot.index
-            editing = KeyEditTarget(id: slot.index)
-        } label: {
-            Text(label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .foregroundStyle(selected ? .white : Theme.textPrimary.opacity(0.85))
-                .frame(width: keyUnit * slot.width - 6, height: 34)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: selected
-                                    ? [Theme.accent.opacity(0.95), Theme.accent.opacity(0.72)]
-                                    : [Theme.keyFillTop, Theme.keyFillBottom],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(selected ? Theme.accent : Theme.keyStroke, lineWidth: 1)
-                )
-                .shadow(color: selected ? Theme.accent.opacity(0.35) : .black.opacity(0.08),
-                        radius: selected ? 7 : 2, y: 1)
-        }
-        .buttonStyle(.plain)
-        .help(label.isEmpty ? "空" : label)
+        .frame(maxWidth: .infinity)
+        .card(padding: 20)
     }
 
     private func keyDetail(_ index: Int) -> some View {
         let keys = store.currentKeys
         let key = index < keys.count ? keys[index] : .transparent
-        return HStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 2) {
+        return HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("键 #\(index)")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
                 Text(key.label.isEmpty ? "—" : key.label)
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textSecondary)
             }
-            Divider().frame(height: 26)
+            Rectangle().fill(Theme.border).frame(width: 1, height: 24)
             Text(String(format: "0x%04X", key.raw))
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 11.5, design: .monospaced))
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
+            Text("层 \(layerTitle)")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Theme.textTertiary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.black.opacity(0.045), in: Capsule())
             Button("修改按键") { editing = KeyEditTarget(id: index) }
                 .buttonStyle(SecondaryButtonStyle())
-            Text("层 \(layerTitle)")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.textSecondary)
         }
         .card(padding: 12)
     }
@@ -188,52 +174,47 @@ struct LayoutView: View {
     // MARK: - Library
 
     private var libraryCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
                 Text("配列库")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
                 Text("\(store.layoutsForDevice.count) 套 · 型号 \(store.keyboardModel)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textSecondary)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.textTertiary)
                 Spacer()
             }
-            VStack(spacing: 2) {
+            .padding(.horizontal, 4)
+            .padding(.bottom, 2)
+            VStack(spacing: 0) {
                 ForEach(store.layoutsForDevice) { layout in
                     libraryRow(layout)
                 }
             }
         }
-        .card(padding: 16)
+        .card(padding: 12)
     }
 
     private func libraryRow(_ layout: DeviceStore.LayoutSummary) -> some View {
         let selected = store.selectedLayoutID == layout.id
-        return Button {
+        return HoverRow(selected: selected) {
             store.selectLayout(layout.id)
             selectedKey = nil
-        } label: {
-            HStack(spacing: 10) {
+        } content: {
+            HStack(spacing: 9) {
                 Image(systemName: layout.isDefault ? "lock.fill" : "square.and.pencil")
                     .font(.system(size: 10))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(selected ? Theme.accent : Theme.textTertiary)
                     .frame(width: 14)
                 Text(layout.displayName)
-                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(Theme.textPrimary.opacity(selected ? 1 : 0.85))
+                    .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Theme.textPrimary : Theme.textPrimary.opacity(0.85))
                 Spacer()
                 Text("型号 \(layout.model)")
                     .font(.system(size: 10))
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.textTertiary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(selected ? Theme.accentSoft : .clear)
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .contextMenu {
             Button("重命名") {
                 renameTarget = layout
@@ -248,5 +229,40 @@ struct LayoutView: View {
                 store.deleteSelectedLayout()
             }
         }
+    }
+}
+
+/// A single key cap: flat white tile, red when selected, subtle lift on hover.
+struct KeyCap: View {
+    let label: String
+    let width: CGFloat
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .foregroundStyle(selected ? Color.white : Theme.textPrimary.opacity(0.88))
+                .frame(width: width, height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(selected ? Theme.accent : (hovering ? Theme.accentSoft : Theme.surface))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(
+                            selected ? Color.clear : (hovering ? Theme.accent.opacity(0.45) : Theme.keyBorder),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: .black.opacity(selected ? 0.10 : 0.04), radius: selected ? 4 : 1.5, y: 1)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(label.isEmpty ? "空" : label)
     }
 }
