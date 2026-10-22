@@ -16,6 +16,11 @@ if [ -f icon.icns ]; then
   cp icon.icns "$APP/Contents/Resources/icon.icns"
 fi
 
+for bundle in .build/release/*.bundle; do
+  [ -e "$bundle" ] || continue
+  cp -R "$bundle" "$APP/Contents/Resources/"
+done
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

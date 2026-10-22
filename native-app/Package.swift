@@ -22,7 +22,8 @@ let package = Package(
         .executableTarget(
             name: "HexcoreLink",
             dependencies: ["CLiana", "CSQLiteMC"],
-            path: "Sources/HexcoreLink"
+            path: "Sources/HexcoreLink",
+            resources: [.copy("Resources/icons")]
         ),
         .executableTarget(
             name: "LianaProbe",

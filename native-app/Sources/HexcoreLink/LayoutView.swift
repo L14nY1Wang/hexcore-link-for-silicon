@@ -55,6 +55,7 @@ struct LayoutView: View {
                 HStack(spacing: 8) {
                     Text("配列")
                         .font(.system(size: 24, weight: .bold))
+                        .tracking(-0.4)
                         .foregroundStyle(Theme.textPrimary)
                     if store.hasUnsavedEdits {
                         Text("未保存")
@@ -79,14 +80,29 @@ struct LayoutView: View {
 
     private var toolbar: some View {
         HStack(spacing: 8) {
-            Button("从设备读取") { store.readDeviceLayer() }
-                .buttonStyle(SecondaryButtonStyle())
-            Button("应用到设备") { store.applyCurrentLayer() }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(store.connected == nil || store.currentKeys.isEmpty)
-            Button("保存到配列库") { store.saveCurrentLayout() }
-                .buttonStyle(SecondaryButtonStyle())
-                .disabled(store.currentKeymap == nil)
+            Button { store.readDeviceLayer() } label: {
+                HStack(spacing: 6) {
+                    AppIcon("download", size: 12)
+                    Text("从设备读取")
+                }
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            Button { store.applyCurrentLayer() } label: {
+                HStack(spacing: 6) {
+                    AppIcon("upload", size: 12)
+                    Text("应用到设备")
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(store.connected == nil || store.currentKeys.isEmpty)
+            Button { store.saveCurrentLayout() } label: {
+                HStack(spacing: 6) {
+                    AppIcon("save", size: 12)
+                    Text("保存到配列库")
+                }
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(store.currentKeymap == nil)
             if !store.deviceLayerStatus.isEmpty {
                 Text(store.deviceLayerStatus)
                     .font(.system(size: 11))
@@ -156,8 +172,13 @@ struct LayoutView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(Color.black.opacity(0.045), in: Capsule())
-            Button("修改按键") { editing = KeyEditTarget(id: index) }
-                .buttonStyle(SecondaryButtonStyle())
+            Button { editing = KeyEditTarget(id: index) } label: {
+                HStack(spacing: 6) {
+                    AppIcon("pencil", size: 11)
+                    Text("修改按键")
+                }
+            }
+            .buttonStyle(SecondaryButtonStyle())
         }
         .card(padding: 12)
     }
@@ -259,7 +280,6 @@ struct KeyCap: View {
                             lineWidth: 1
                         )
                 )
-                .shadow(color: .black.opacity(selected ? 0.10 : 0.04), radius: selected ? 4 : 1.5, y: 1)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

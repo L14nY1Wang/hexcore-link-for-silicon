@@ -11,6 +11,7 @@ struct ContentView: View {
         } detail: {
             ZStack {
                 Theme.canvas.ignoresSafeArea()
+                DotGridBackground()
                 VStack(spacing: 0) {
                     topBar
                     page
@@ -30,8 +31,7 @@ struct ContentView: View {
             Button {
                 columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
             } label: {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 12, weight: .medium))
+                AppIcon("panel-left", size: 13)
                     .foregroundStyle(Theme.textSecondary)
                     .frame(width: 26, height: 26)
                     .background(
@@ -74,8 +74,7 @@ private struct Sidebar: View {
                         store.refresh()
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11, weight: .medium))
+                            AppIcon("scan-line", size: 12)
                             Text("重新扫描")
                                 .font(.system(size: 12))
                             Spacer()
@@ -111,8 +110,7 @@ private struct Sidebar: View {
                 .fill(Theme.accent)
                 .frame(width: 26, height: 26)
                 .overlay(
-                    Image(systemName: "keyboard.fill")
-                        .font(.system(size: 12, weight: .semibold))
+                    AppIcon("keyboard", size: 13)
                         .foregroundStyle(.white)
                 )
             VStack(alignment: .leading, spacing: 0) {
@@ -148,8 +146,7 @@ private struct Sidebar: View {
                     .fill(connected ? Theme.accentSoft : Color.black.opacity(0.045))
                     .frame(width: 24, height: 24)
                     .overlay(
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 11, weight: .medium))
+                        AppIcon("keyboard", size: 12)
                             .foregroundStyle(connected ? Theme.accent : Theme.textSecondary)
                     )
                 VStack(alignment: .leading, spacing: 0) {
@@ -186,8 +183,7 @@ private struct Sidebar: View {
             store.page = page
         } content: {
             HStack(spacing: 9) {
-                Image(systemName: page.icon)
-                    .font(.system(size: 12, weight: .medium))
+                AppIcon(page.icon, size: 13)
                     .frame(width: 16)
                 Text(page.title)
                     .font(.system(size: 12.5, weight: store.page == page ? .semibold : .regular))

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 enum Theme {
     static let canvas = Color(hex: 0xF5F5F7)
@@ -40,7 +41,6 @@ struct Card: ViewModifier {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(Theme.border, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.03), radius: 2, y: 1)
     }
 }
 
@@ -136,5 +136,63 @@ struct HoverRow<Content: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Icons (Lucide, ISC licensed)
+
+enum IconStore {
+    private static var cache: [String: NSImage] = [:]
+
+    static func image(_ name: String) -> NSImage? {
+        if let cached = cache[name] { return cached }
+        guard let url = Bundle.module.url(forResource: name, withExtension: "svg", subdirectory: "icons"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        cache[name] = image
+        return image
+    }
+}
+
+struct AppIcon: View {
+    let name: String
+    let size: CGFloat
+
+    init(_ name: String, size: CGFloat = 13) {
+        self.name = name
+        self.size = size
+    }
+
+    var body: some View {
+        if let image = IconStore.image(name) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size, height: size)
+        } else {
+            Color.clear.frame(width: size, height: size)
+        }
+    }
+}
+
+/// Faint dot grid; keeps the canvas flat but adds a technical texture.
+struct DotGridBackground: View {
+    var spacing: CGFloat = 22
+    var body: some View {
+        Canvas { context, size in
+            var dots = Path()
+            var y: CGFloat = 10
+            while y < size.height {
+                var x: CGFloat = 10
+                while x < size.width {
+                    dots.addEllipse(in: CGRect(x: x, y: y, width: 1.2, height: 1.2))
+                    x += spacing
+                }
+                y += spacing
+            }
+            context.fill(dots, with: .color(.black.opacity(0.06)))
+        }
+        .allowsHitTesting(false)
+        .ignoresSafeArea()
     }
 }

@@ -26,6 +26,7 @@ struct OverviewView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text("总览")
                 .font(.system(size: 24, weight: .bold))
+                        .tracking(-0.4)
                 .foregroundStyle(Theme.textPrimary)
             Text("设备状态与固件信息")
                 .font(.system(size: 11.5))
@@ -54,10 +55,20 @@ struct OverviewView: View {
                     metaItem("连接", device.isUSB ? "有线" : "无线")
                 }
                 HStack(spacing: 8) {
-                    Button("重新读取") { store.readAll() }
-                        .buttonStyle(SecondaryButtonStyle())
-                    Button("断开连接") { store.disconnect() }
-                        .buttonStyle(SecondaryButtonStyle())
+                    Button { store.readAll() } label: {
+                        HStack(spacing: 6) {
+                            AppIcon("refresh-cw", size: 11)
+                            Text("重新读取")
+                        }
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    Button { store.disconnect() } label: {
+                        HStack(spacing: 6) {
+                            AppIcon("unplug", size: 11)
+                            Text("断开连接")
+                        }
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
                 }
                 .padding(.top, 2)
             }
@@ -112,7 +123,7 @@ struct OverviewView: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 infoTile("固件", store.firmware, "cpu")
                 infoTile("运行时间", store.uptime, "clock")
-                infoTile("硬件状态", store.hardwareState, "memorychip")
+                infoTile("硬件状态", store.hardwareState, "memory-stick")
                 infoTile("输入监控", store.permission, "keyboard")
             }
             Rectangle().fill(Theme.border).frame(height: 1)
@@ -137,8 +148,7 @@ struct OverviewView: View {
                 .fill(Color.black.opacity(0.045))
                 .frame(width: 26, height: 26)
                 .overlay(
-                    Image(systemName: icon)
-                        .font(.system(size: 11, weight: .medium))
+                    AppIcon(icon, size: 12)
                         .foregroundStyle(Theme.textSecondary)
                 )
             VStack(alignment: .leading, spacing: 1) {
@@ -160,8 +170,7 @@ struct OverviewView: View {
                 .fill(Color.black.opacity(0.04))
                 .frame(width: 56, height: 56)
                 .overlay(
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 24, weight: .light))
+                    AppIcon("keyboard", size: 24)
                         .foregroundStyle(Theme.textTertiary)
                 )
             Text("未连接设备")
@@ -180,15 +189,19 @@ struct OverviewView: View {
     private var permissionBanner: some View {
         if store.permission != "granted" {
             HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12))
+                AppIcon("circle-alert", size: 13)
                     .foregroundStyle(Color(hex: 0xF59E0B))
                 Text("输入监控权限：\(store.permission)（未授权时无法监听键盘事件）")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
-                Button("请求权限") { store.requestPermission() }
-                    .buttonStyle(SecondaryButtonStyle())
+                Button { store.requestPermission() } label: {
+                    HStack(spacing: 6) {
+                        AppIcon("lock-open", size: 11)
+                        Text("请求权限")
+                    }
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

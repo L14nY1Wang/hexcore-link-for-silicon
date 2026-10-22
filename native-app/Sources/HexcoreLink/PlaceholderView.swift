@@ -9,8 +9,7 @@ struct PlaceholderView: View {
                 .fill(Color.black.opacity(0.04))
                 .frame(width: 56, height: 56)
                 .overlay(
-                    Image(systemName: page.icon)
-                        .font(.system(size: 24, weight: .light))
+                    AppIcon(page.icon, size: 24)
                         .foregroundStyle(Theme.textTertiary)
                 )
             Text("\(page.title)功能开发中")

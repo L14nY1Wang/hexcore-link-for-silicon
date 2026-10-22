@@ -70,8 +70,8 @@ final class DeviceStore: ObservableObject {
             case .overview: return "gauge"
             case .layout: return "keyboard"
             case .lighting: return "lightbulb"
-            case .macros: return "record.circle"
-            case .settings: return "gearshape"
+            case .macros: return "circle-dot"
+            case .settings: return "settings"
             }
         }
     }
