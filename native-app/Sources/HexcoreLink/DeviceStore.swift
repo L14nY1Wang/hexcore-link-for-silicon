@@ -581,6 +581,12 @@ final class DeviceStore: ObservableObject {
         connected = device
         error = ""
         readAll()
+        // Every control read comes back empty when the keyboard's endpoint is
+        // stalled (usually after a rejected multi-frame write); only a
+        // re-plug resets it.
+        if firmware == "无回复", battery == nil {
+            error = "设备无响应。请拔插键盘的 USB 线后重新连接。"
+        }
     }
 
     func disconnect() {
